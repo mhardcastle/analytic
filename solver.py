@@ -9,7 +9,10 @@ from constants import *
 # imported from agecorrection
 def intb(st,end,time,bv,bcmb):
     '''
-    Find the effective B-field experienced by the electrons
+    Find the effective B-field experienced by the electrons between
+    time 'st' and time 'end' given an array of times 'time' and an
+    array of B-field values 'bv'.
+
     We integrate by:
     * linearly interpolating for the first part
     * assuming 'end' is an element of 'time' and just summing over all but the first part
@@ -31,12 +34,27 @@ def intb(st,end,time,bv,bcmb):
     b+=bcmb**2.0
     return np.sqrt(b)
 
-def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbose=False,do_adiabatic=False):
+def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbose=False,do_adiabatic=False,tstop=None):
     '''
     Find the correction factor to apply to the synchrotron luminosity.
     Optionally takes account of adiabatic expansion
 
-    volumes gives the array of lobe volumes matching time
+    'now' is the time index at which we want to compute the correction
+    'freq' is an array or list of frequency values in Hz -- we loop over these
+    'time' is an array of times (in Myr) at which we have magnetic field strengths calculated
+    'bm' are the calculated magnetic field strengths in T
+    'intervals' is the number of intervals to break each time range into
+    'volumes' gives the array of lobe volumes matching time, only used if 'do_adiabatic' is True
+    'tstop' is the stop time in Myr
+
+    This code is called with various values of 'now' and assumes by
+    default that the electron population is composed of equal amounts
+    of particles injected between t=0 and 'now' -- i.e. 'starttime' varies
+    from 0 (particles injected at switchon) to 'endtime' (particles injected
+    right now).
+
+    To deal with the situation where there is a tstop we simply prevent starttime from getting any larger than tstop. So no particles younger than this are injected.
+
     '''
     
     bsm=bm**2.0
@@ -49,6 +67,8 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
     for i in range(intervals+1):
 
         starttime=endtime*float(i)/float(intervals)
+        if tstop is not None and starttime>tstop:
+            starttime=tstop
         if verbose: print 'interval',i
         if verbose: print 'starttime is',starttime,'Myr'
 
@@ -61,7 +81,7 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
             b=intb(starttime,endtime,time,bsm,bcmb)
         if verbose: print 'effective ageing field is',b
         for j,f in enumerate(freq):
-            if freq is None:
+            if f is None:
                 emiss[j]=1
                 uae[j]=1
             else:
@@ -122,7 +142,12 @@ class Evolve_RG(object):
     def vlobe(self,R,Rp,t,N=None):
         if N is None:
             N=self.intn(R,Rp)
-        return self.vtot(R,Rp)*(self.xi*self.Q*t/((2.0-self.xi)*self.Q*t+3*N*self.kt))
+        if t>self.tstop:
+            time=self.tstop
+        else:
+            time=t
+            
+        return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+3*N*self.kt))
 
     def solve_mach(self,p1,p0):
         return self.cs*np.sqrt((1.0/(2.0*gamma))*((gamma+1)*(p1/p0)-(1-gamma)))
@@ -133,10 +158,10 @@ class Evolve_RG(object):
         if vl is None:
             vl=self.vlobe(R,Rp,t)
         if t<=self.tstop:
-            internal=(self.Q*t)/(6*vl)
-            ram=(self.Q*R)/(c*vl)
+            internal=(self.xi*self.Q*t)/(3*vl)
+            ram=(self.Q*R)/(2*c*vl)
         else:
-            internal=(self.Q*tstop)/(6*vl)
+            internal=(self.xi*self.Q*self.tstop)/(3*vl)
             ram=0
         result=np.array([
             self.solve_mach(ram+internal,self.pr(R)),
@@ -156,6 +181,7 @@ class Evolve_RG(object):
             self.tstop=tv[-1]*2
         else:
             self.tstop=tstop
+        print 'tstop is',self.tstop
         self.results=odeint(self.dL_dt,[c*tv[0],c*tv[0]],tv)
         self.R=self.results[:,0]
         self.Rp=self.results[:,1]
@@ -185,16 +211,21 @@ class Evolve_RG(object):
             self.findb()
             B=self.B
         # eqs from Longair
-        self.synch=2.344e-25*0.4*(self.xi*self.Q*self.tv)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/self.I
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+        self.synch=2.344e-25*0.4*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/self.I
         print self.synch
             
-    def findb(self,eta=0.1):
+    def findb(self):
         B=[]
         for i in range(len(self.tv)):
             vl=self.vl[i]
-            E=self.Q*self.tv[i]
+            if self.tv[i]>self.tstop:
+                t=self.tstop
+            else:
+                t=self.tv[i]
+            E=self.xi*self.Q*t
             U=E/vl
-            B.append(np.sqrt(2*mu0*U*eta/(1+eta)))
+            B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta)))
         self.B=np.array(B)
 
     def findcorrection(self,freqs,z=0):
@@ -212,7 +243,7 @@ class Evolve_RG(object):
 
         corrs=[]
         for i in range(len(self.tv)):
-            corrs.append(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic))
+            corrs.append(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.corrs=np.array(corrs)
             
     def setfunctions(self):
@@ -255,9 +286,14 @@ class Evolve_RG(object):
         self.cs=np.sqrt(5.0*self.kt/(3.0*m0))
         try:
             self.xi=kwargs['xi']
-            print 'Xi set to',self.xi
         except:
             self.xi=0.5
+        print 'Xi (energy fraction in lobes) set to',self.xi
+        try:
+            self.zeta=kwargs['zeta']
+        except:
+            self.zeta=0.1
+        print 'Zeta (equipartition parameter) set to',self.zeta
 
         try:
             self.do_adiabatic=kwargs['do_adiabatic']
