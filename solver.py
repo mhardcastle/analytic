@@ -142,6 +142,7 @@ class Evolve_RG(object):
     def vlobe(self,R,Rp,t,N=None):
         if N is None:
             N=self.intn(R,Rp)
+        self.N=N
         if t>self.tstop:
             time=self.tstop
         else:
@@ -149,6 +150,13 @@ class Evolve_RG(object):
             
         return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+3*N*self.kt))
 
+    def solve_rel(self,X):
+    # solve the equation Gamma v^2 = X for v
+        return np.sqrt(2*np.sqrt(X**4.0+4*c**4.0*X**2.0)-2*X**2.0)/(2.0*c)
+
+    def solve_rpb(self,pint,pext,dext):
+        return self.solve_rel((pint-pext)/dext)
+    
     def solve_mach(self,p1,p0):
         return self.cs*np.sqrt((1.0/(2.0*gamma))*((gamma+1)*(p1/p0)-(1-gamma)))
 
@@ -166,8 +174,6 @@ class Evolve_RG(object):
         result=np.array([
             self.solve_mach(ram+internal,self.pr(R)),
             self.solve_mach(internal,self.pr(Rp))
-            #        solve_hybrid((Q*R)/(c*vl) + (Q*t)/(6*vl),pbetam(R),R,Rp,t),
-            #        solve_hybrid((Q*t)/(6*vl),pbetam(Rp),R,Rp,t)
             ])
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
