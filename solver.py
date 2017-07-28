@@ -139,10 +139,12 @@ class Evolve_RG(object):
     def vtot(self,R,Rp):
         return (4.0/3.0)*np.pi*R*Rp**2.0
 
-    def vlobe(self,R,Rp,t,N=None):
-        if N is None:
+    def vlobe(self,R,Rp,t):
+        try:
+            N=self.ndict[(R,Rp)]
+        except:
             N=self.intn(R,Rp)
-        self.N=N
+            self.ndict[(R,Rp)]=N
         if t>self.tstop:
             time=self.tstop
         else:
@@ -158,7 +160,7 @@ class Evolve_RG(object):
         return self.solve_rel((pint-pext)/dext)
     
     def solve_mach(self,p1,p0):
-        return self.cs*np.sqrt((1.0/(2.0*gamma))*((gamma+1)*(p1/p0)-(1-gamma)))
+        return self.cs*np.sqrt((1.0/(2.0*self.Gamma))*((self.Gamma+1)*(p1/p0)-(1-self.Gamma)))
 
     def dL_dt(self,L,t,vl=None):
         R=L[0]
@@ -166,14 +168,14 @@ class Evolve_RG(object):
         if vl is None:
             vl=self.vlobe(R,Rp,t)
         if t<=self.tstop:
-            internal=(self.xi*self.Q*t)/(3*vl)
+            internal=self.prfactor*(self.xi*self.Q*t)/vl
             ram=(self.Q*R)/(2*self.qfactor*vl)
         else:
-            internal=(self.xi*self.Q*self.tstop)/(3*vl)
+            internal=self.prfactor*(self.xi*self.Q*self.tstop)/vl
             ram=0
         result=np.array([
             self.solve_mach(ram+internal,self.pr(R)),
-            self.solve_mach(internal,self.pr(Rp))
+            self.solve_mach(self.fudge*internal,self.pr(Rp))
             ])
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
@@ -188,20 +190,30 @@ class Evolve_RG(object):
         else:
             self.tstop=tstop
         print 'tstop is',self.tstop
+        self.ndict={}
         self.results=odeint(self.dL_dt,[c*tv[0],c*tv[0]],tv)
         self.R=self.results[:,0]
         self.Rp=self.results[:,1]
+        # now redo to find speeds etc
         self.rlobe=[]
         self.m1=[]
+        self.mp1=[]
         self.vl=[]
+        self.vt=[]
         for i in range(len(self.R)):
             vl=self.vlobe(self.R[i],self.Rp[i],tv[i])
+            vt=self.vtot(self.R[i],self.Rp[i])
             self.vl.append(vl)
-            self.rlobe.append(vl/self.vtot(self.R[i],self.Rp[i]))
-            self.m1.append(self.dL_dt([self.R[i],self.Rp[i]],tv[i],vl)[0]/self.cs)
+            self.vt.append(vt)
+            self.rlobe.append(vl/vt)
+            speeds=self.dL_dt([self.R[i],self.Rp[i]],tv[i],vl)
+            self.m1.append(speeds[0]/self.cs)
+            self.mp1.append(speeds[1]/self.cs)
         self.vl=np.array(self.vl)
+        self.vt=np.array(self.vt)
         self.rlobe=np.array(self.rlobe)
         self.m1=np.array(self.m1)
+        self.mp1=np.array(self.mp1)
             
     def findsynch(self,q,nu):
         self.q=q
@@ -307,11 +319,28 @@ class Evolve_RG(object):
             self.qfactor=c
         print 'Q factor is',self.qfactor
         
+
+        try:
+            self.fudge=kwargs['fudge']
+        except:
+            self.fudge=1.0
+        
         try:
             self.do_adiabatic=kwargs['do_adiabatic']
         except:
             self.do_adiabatic=False
 
+        try:
+            self.Gamma=kwargs['Gamma']
+        except:
+            self.Gamma=5.0/3.0
+        if self.Gamma==(4.0/3.0):
+            self.prfactor=2.0/3.0
+        elif self.Gamma==(5.0/3.0):
+            self.prfactor=1.0/3.0
+        else:
+            raise RuntimeError('Adiabatic index is not understood')
+            
             
     def __getstate__(self):
         dict=self.__dict__.copy()

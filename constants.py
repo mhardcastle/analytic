@@ -1,7 +1,6 @@
 import numpy as np
 
 c=3e8
-gamma=5.0/3.0
 Myr=1e6*365*86400.0
 kpc=1e3*3e16
 m0=0.6*1.6e-27 # kg

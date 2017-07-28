@@ -10,8 +10,8 @@ rc('text', usetex=True)
 
 
 tmin=0
-tmax=300
-tv=np.logspace(-6,np.log10(tmax),100)*Myr
+tmax=200
+tv=np.logspace(-6,np.log10(tmax),200)*Myr
 
 #env=evolve_rg('universal',M500=1e14)
 Q=2e38
@@ -23,7 +23,7 @@ for beta in [0.55,0.75,0.90]:
             envs.append(Evolve_RG.load(outname))
         else:
             rc*=2.1*kpc
-            envs.append(Evolve_RG('beta',kT=2e3*eV,p0=5.76e-12,rc=rc,beta=beta,do_adiabatic=True,qfactor=0.5*25*730e3))
+            envs.append(Evolve_RG('beta',kT=2e3*eV,p0=5.76e-12,rc=rc,beta=beta,do_adiabatic=True,qfactor=0.5*25*730e3,Gamma=(4.0/3.0)))
             envs[-1].solve(Q,tv)
             envs[-1].save(outname)
 
