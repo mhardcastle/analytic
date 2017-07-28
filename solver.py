@@ -167,7 +167,7 @@ class Evolve_RG(object):
             vl=self.vlobe(R,Rp,t)
         if t<=self.tstop:
             internal=(self.xi*self.Q*t)/(3*vl)
-            ram=(self.Q*R)/(2*c*vl)
+            ram=(self.Q*R)/(2*self.qfactor*vl)
         else:
             internal=(self.xi*self.Q*self.tstop)/(3*vl)
             ram=0
@@ -301,6 +301,12 @@ class Evolve_RG(object):
             self.zeta=0.1
         print 'Zeta (equipartition parameter) set to',self.zeta
 
+        try:
+            self.qfactor=kwargs['qfactor']
+        except:
+            self.qfactor=c
+        print 'Q factor is',self.qfactor
+        
         try:
             self.do_adiabatic=kwargs['do_adiabatic']
         except:

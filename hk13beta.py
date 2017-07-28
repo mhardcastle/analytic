@@ -23,7 +23,7 @@ for beta in [0.55,0.75,0.90]:
             envs.append(Evolve_RG.load(outname))
         else:
             rc*=2.1*kpc
-            envs.append(Evolve_RG('beta',kT=2e3*eV,p0=1e-11,rc=rc,beta=beta,do_adiabatic=True))
+            envs.append(Evolve_RG('beta',kT=2e3*eV,p0=5.76e-12,rc=rc,beta=beta,do_adiabatic=True,qfactor=0.5*25*730e3))
             envs[-1].solve(Q,tv)
             envs[-1].save(outname)
 
@@ -38,8 +38,8 @@ for i in range(2):
     if i==0:
         plt.ylim([1e-3,1e3])
     else:
-        plt.xlim([1,300])
-        plt.ylim([10,1000])
+        plt.xlim([2,300])
+        plt.ylim([10,600])
     plt.xlabel('Time (Myr)')
     plt.ylabel('Lobe length (kpc)')
     plt.legend(loc=0,fontsize='small')
