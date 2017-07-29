@@ -17,12 +17,12 @@ for beta in [0.55,0.75,0.90]:
         env=Evolve_RG.load('beta-%.2f-%i.pickle' % (beta,rc))
         tv=env.tv
 
-        plt.plot(tv/Myr,env.vl/(kpc**3.0),color=color,ls='--')
+        plt.plot(tv/Myr,env.vt/(kpc**3.0),color=color,ls='--')
 
         t=np.loadtxt('/home/mjh/PLUTO/results2/bmb-%i-%i-2s' % (int(beta*100),rc),skiprows=1)
         stu=2.9
         slu=2.1
-        plt.plot(t[:,0]*stu,(t[:,14]+t[:,1])*0.5*slu**3.0,color=color,label='$\\beta = %.2f$ $r_c=%.0f$ kpc' % (env.beta,env.rc/kpc))
+        plt.plot(t[:,0]*stu,(t[:,15]+t[:,2]+t[:,14]+t[:,1])*0.5*slu**3.0,color=color,label='$\\beta = %.2f$ $r_c=%.0f$ kpc' % (env.beta,env.rc/kpc))
 
 plt.xscale('log')
 plt.yscale('log')

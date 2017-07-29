@@ -149,8 +149,11 @@ class Evolve_RG(object):
             time=self.tstop
         else:
             time=t
-            
-        return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+3*N*self.kt))
+
+        if self.Gamma==(4.0/3.0):
+            return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+3*N*self.kt))
+        else:
+            return self.vtot(R,Rp)*(self.xi*self.Q*time/(self.Q*time+3*N*self.kt/2.0))
 
     def solve_rel(self,X):
     # solve the equation Gamma v^2 = X for v
@@ -169,13 +172,13 @@ class Evolve_RG(object):
             vl=self.vlobe(R,Rp,t)
         if t<=self.tstop:
             internal=self.prfactor*(self.xi*self.Q*t)/vl
-            ram=(self.Q*R)/(2*self.qfactor*vl)
+            ram=self.epsilon*(self.Q*R)/(2*self.qfactor*vl)
         else:
             internal=self.prfactor*(self.xi*self.Q*self.tstop)/vl
             ram=0
         result=np.array([
             self.solve_mach(ram+internal,self.pr(R)),
-            self.solve_mach(self.fudge*internal,self.pr(Rp))
+            self.solve_mach(internal,self.pr(Rp))
             ])
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
@@ -318,13 +321,13 @@ class Evolve_RG(object):
         except:
             self.qfactor=c
         print 'Q factor is',self.qfactor
-        
 
         try:
-            self.fudge=kwargs['fudge']
+            self.epsilon=kwargs['epsilon']
         except:
-            self.fudge=1.0
-        
+            self.epsilon=2.0
+
+
         try:
             self.do_adiabatic=kwargs['do_adiabatic']
         except:
@@ -333,11 +336,11 @@ class Evolve_RG(object):
         try:
             self.Gamma=kwargs['Gamma']
         except:
-            self.Gamma=5.0/3.0
+            self.Gamma=4.0/3.0
         if self.Gamma==(4.0/3.0):
-            self.prfactor=2.0/3.0
-        elif self.Gamma==(5.0/3.0):
             self.prfactor=1.0/3.0
+        elif self.Gamma==(5.0/3.0):
+            self.prfactor=2.0/3.0
         else:
             raise RuntimeError('Adiabatic index is not understood')
             
