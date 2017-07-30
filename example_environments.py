@@ -11,14 +11,19 @@ envs=[Evolve_RG('beta',kT=2.27e3*eV,p0=4e-12,rc=30*kpc,beta=0.67,xi=xi),Evolve_R
 
 tmin=0
 tmax=300
-tv=np.logspace(-6,np.log10(tmax),100)*Myr
+tv=np.logspace(-5,np.log10(tmax),100)*Myr
 Q=2e39
 
 for env,l in zip(envs,labels):
     outname='example-'+l+'.pickle'
     if os.path.isfile(outname):
-        envs.append(Evolve_RG.load(outname))
+        env=Evolve_RG.load(outname)
     else:
         env.solve(Q,tv)
+    try:
+        dummy=env.corrs
+    except:
+        env.findb()
+        env.findsynch(2.1,150e6)
+        env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True)
         env.save(outname)
-

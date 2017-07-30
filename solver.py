@@ -220,6 +220,8 @@ class Evolve_RG(object):
             
     def findsynch(self,q,nu):
         self.q=q
+        self.alpha=0.5*(q-1)
+        self.nu_ref=nu
         self.emax=1e8*m_e*c**2.0
         self.emin=10*m_e*c**2.0
         if q==2.0:
@@ -249,10 +251,12 @@ class Evolve_RG(object):
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta)))
         self.B=np.array(B)
 
-    def findcorrection(self,freqs,z=0):
+    def findcorrection(self,freqs,z=0,do_adiabatic=None):
         # adapted from agecorrection.py code
         synch.setspectrum(500,1e6,self.q)
-
+        if do_adiabatic is not None:
+            self.do_adiabatic=do_adiabatic
+        self.freqs=freqs
         redshift=z
         cmbtemp=2.73
         boltzmann=1.380658e-23
@@ -263,7 +267,9 @@ class Evolve_RG(object):
         print 'CMB energy density in B-field terms is %g T' % bcmb
 
         corrs=[]
+        print 'Finding correction factors:'
         for i in range(len(self.tv)):
+            print self.tv[i]
             corrs.append(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.corrs=np.array(corrs)
             
