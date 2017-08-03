@@ -7,7 +7,7 @@ from matplotlib import rc
 rc('font',**{'family':'serif','serif':['Times'],'size':14})
 rc('text', usetex=True)
 
-env=Evolve_RG.load('example-universal.pickle')
+env=Evolve_RG.load('example-tstop-universal.pickle')
 
 plt.figure(figsize=(12,5.5))
 
@@ -30,10 +30,6 @@ plt.xscale('log')
 plt.legend(loc=0)
 plt.xlabel('Time (Myr)')
 plt.ylabel('Spectral index')
-plt.savefig('example-spectra.pdf')
-
-plt.clf()
-plt.plot(env.R/kpc,env.B)
-plt.xscale('log')
-plt.yscale('log')
 plt.show()
+#plt.savefig('example-spectra.pdf')
+
