@@ -20,10 +20,8 @@ for env,l in zip(envs,labels):
         env=Evolve_RG.load(outname)
     else:
         env.solve(Q,tv)
-    try:
-        dummy=env.corrs
-    except:
-        env.findb()
-        env.findsynch(2.1,150e6)
-        env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True)
-        env.save(outname)
+
+    env.findb()
+    env.findsynch(2.1,150e6)
+    env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True)
+    env.save(outname)

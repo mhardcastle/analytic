@@ -88,10 +88,15 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
                 age=(endtime-starttime)*86400.0*365.0*1.0e6
                 if do_adiabatic:
                     age*=(volumes[now]/vstart)**(1.0/3.0)
+                # trapezium rule factors
+                if i==0 or i==intervals:
+                    factor=0.5
+                else:
+                    factor=1.0
                 synch.setage(age,b)
-                emiss[j]+=synch.emiss(1.0,bm[now],f)
+                emiss[j]+=factor*synch.emiss(1.0,bm[now],f)
                 synch.setage(1.0,b)
-                uae[j]+=synch.emiss(1.0,bm[now],f)
+                uae[j]+=factor*synch.emiss(1.0,bm[now],f)
 
     return emiss/uae
 

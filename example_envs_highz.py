@@ -11,19 +11,18 @@ envs=[Evolve_RG('beta',kT=2.27e3*eV,p0=4e-12,rc=30*kpc,beta=0.67,xi=xi),Evolve_R
 
 tmin=0
 tmax=300
-tv=np.logspace(-5,np.log10(tmax),300)*Myr
+tv=np.logspace(-5,np.log10(tmax),100)*Myr
 Q=2e39
 
 for env,l in zip(envs,labels):
-    outname='example-tstop-'+l+'.pickle'
-    if os.path.isfile(outname):
-        env=Evolve_RG.load(outname)
+    inname='example-'+l+'.pickle'
+    outname='example-'+l+'-highz.pickle'
+    if os.path.isfile(inname):
+        env=Evolve_RG.load(inname)
     else:
-        env.solve(Q,tv,tstop=100*Myr)
-#    try:
-#        dummy=env.corrs
-#    except:
+        env.solve(Q,tv)
+
     env.findb()
     env.findsynch(2.1,150e6)
-    env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True)
+    env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True,z=2)
     env.save(outname)
