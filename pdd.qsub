@@ -23,5 +23,5 @@ echo PBS: current home directory is $PBS_O_HOME
 echo PBS: PATH = $PBS_O_PATH
 echo --------------------------------------------
 
-cd /home/mjh/analytic
-python /home/mjh/git/analytic/ode_nm_compare_jp_cluster-qsub.py $PBS_ARRAYID
+cd /home/mjh/pdd
+python /home/mjh/git/analytic/pdd-qsub.py $PBS_ARRAYID
