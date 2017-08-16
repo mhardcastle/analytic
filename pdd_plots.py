@@ -5,6 +5,7 @@ from constants import *
 import glob
 import matplotlib.cm as cm
 from matplotlib import rc
+import sys
 
 rc('font',**{'family':'serif','serif':['Times'],'size':14})
 rc('text', usetex=True)
@@ -13,6 +14,10 @@ from solver import Evolve_RG
 
 if __name__=='__main__':
 
+    if len(sys.argv)>1:
+        highz=True
+    else:
+        highz=False
     t3c=Table.read('3crr.txt',format='ascii')
     #    t3c=t3c[t3c['Redshift']<0.5]
     
@@ -27,7 +32,10 @@ if __name__=='__main__':
     tmax=300
     tv=np.logspace(-6,np.log10(tmax),100)*Myr
 
-    g=glob.glob('save*.pickle')
+    if highz:
+        g=glob.glob('highz*.pickle')
+    else:
+        g=glob.glob('save*.pickle')
 
     for f in g:
         sdict={}
@@ -71,8 +79,10 @@ if __name__=='__main__':
     plt.ylim((0.55,1.2))
     figs=['lt.pdf','lax.pdf','lllr.pdf','spix.pdf']
 
-
     for fig in range(4):
+        filename=figs[fig]
+        if highz:
+            filename='highz-'+filename
         plt.figure(fig+1)
-        plt.savefig(figs[fig])
+        plt.savefig(filename)
     #plt.show()
