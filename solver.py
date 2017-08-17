@@ -256,8 +256,10 @@ class Evolve_RG(object):
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta)))
         self.B=np.array(B)
 
-    def findcorrection(self,freqs,z=0,do_adiabatic=None):
+    def findcorrection(self,freqs,z=0,do_adiabatic=None,timerange=None):
         # adapted from agecorrection.py code
+        if timerange is None:
+            timerange=range(len(times))
         synch.setspectrum(500,1e6,self.q)
         if do_adiabatic is not None:
             self.do_adiabatic=do_adiabatic
@@ -271,12 +273,12 @@ class Evolve_RG(object):
         bcmb=np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
         print 'CMB energy density in B-field terms is %g T' % bcmb
 
-        corrs=[]
+        corrs=np.ones((len(self.tv),len(freqs)))*np.nan
         print 'Finding correction factors:'
-        for i in range(len(self.tv)):
+        for i in timerange:
             print self.tv[i]
-            corrs.append(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
-        self.corrs=np.array(corrs)
+            corrs[i]=(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
+        self.corrs=corrs
             
     def setfunctions(self):
         if self.env_type=='beta':
