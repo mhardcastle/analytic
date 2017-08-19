@@ -1,20 +1,14 @@
-import glob
-from solver import Evolve_RG
 import matplotlib.pyplot as plt
+from astropy.table import Table
 from constants import *
 
-g=glob.glob('run-*.pickle')
-
+t=Table.read('source-table.fits')
+t=t[t['live']]
 plt.xscale('log')
 plt.yscale('log')
 
 count=0
-for f in g:
-    env=Evolve_RG.load(f)
-    synch=env.synch[-1]*env.corrs[:,0][-1]
-    if synch>0:
-        plt.scatter(env.R[-1]/kpc,synch)
-        count+=1
+colors=['red' if r['remnant'] else 'blue' for r in t]
+plt.scatter(t['D']/kpc,t['l150'],c=colors,alpha=0.5)
 
-print 'Count is',count
 plt.show()

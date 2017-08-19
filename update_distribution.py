@@ -1,0 +1,33 @@
+# Update the distribution table with the values from simulations
+
+from astropy.table import Table
+import numpy as np
+from solver import Evolve_RG
+
+t=Table.read('source-table.txt',format='ascii')
+
+l150=[]
+d=[]
+alpha=[]
+live=[]
+remnant=[]
+
+for i,r in enumerate(t):
+    inname='run-%i.pickle' % i
+    env=Evolve_RG.load(inname)
+    synch=env.synch[-1]*env.corrs[-1,0]
+    live.append(synch>0)
+    l150.append(synch)
+    d.append(env.R[-1])
+    if synch>0:
+        alpha.append(0.55+np.log(env.corrs[-1,1]/env.corrs[-1,2])/np.log(1400.0/150.0))
+    else:
+        alpha.append(np.nan)
+    remnant.append((r['lifetime']+r['Tstart'])<1000.0)
+
+t['l150']=l150
+t['D']=d
+t['alpha']=alpha
+t['live']=live
+t['remnant']=remnant
+t.write('source-table.fits',overwrite=True)
