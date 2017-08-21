@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from astropy.table import Table
 from constants import *
 
-t=Table.read('source-table.fits')
+t=Table.read('obs-table.fits')
 t=t[t['live']]
 plt.xscale('log')
 plt.yscale('log')
