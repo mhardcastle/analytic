@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 from constants import *
 from matplotlib import rc
 from astropy.table import Table
-rc('font',**{'family':'serif','serif':['Times'],'size':16})
+rc('font',**{'family':'serif','serif':['Times'],'size':12})
 rc('text', usetex=True)
 
-t1=Table.read('/home/mjh/distribution2/obs-table.fits')
+t1=Table.read('/home/mjh/distribution/obs-table.fits')
 t2=t1[t1['l150']>3e25]
 plt.figure(figsize=(12,6))
 
@@ -19,5 +19,5 @@ for i,t in enumerate([t1,t2]):
         plt.ylabel('Number of objects')
         plt.legend(loc=0)
 
-plt.show()
-#plt.savefig('remnant-fraction.pdf')
+#plt.show()
+plt.savefig('remnant-fraction.pdf')
