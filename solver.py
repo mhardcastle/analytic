@@ -240,7 +240,7 @@ class Evolve_RG(object):
             B=self.B
         # eqs from Longair
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
-        self.synch=2.344e-25*0.4*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/self.I
+        self.synch=2.344e-25*0.4*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
         print self.synch
             
     def findb(self):
@@ -253,7 +253,7 @@ class Evolve_RG(object):
                 t=self.tv[i]
             E=self.xi*self.Q*t
             U=E/vl
-            B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta)))
+            B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta+self.kappa)))
         self.B=np.array(B)
 
     def findcorrection(self,freqs,z=0,do_adiabatic=None,timerange=None):
@@ -291,6 +291,15 @@ class Evolve_RG(object):
             raise Exception('env_type specified is not recognised')
         
     def __init__(self, env_type, **kwargs):
+
+        keywords = (('xi','Energy fraction in lobes',0.5),
+                    ('zeta', 'Magnetic field/electron energy ratio', 0.1),
+                    ('kappa', 'Non-radiating particle/electron energy ratio', 0),
+                    ('epsilon', 'Geometrical factor for momentum flux', 2),
+                    ('qfactor', 'Energy/momentum conversion factor', c),
+                    ('Gamma', 'Adiabatic index of lobe fluid', 4.0/3.0),
+                    ('do_adiabatic', 'Perform the adiabatic corrections', True))
+        
         # initialize the evolution with an environment specified by env_type
         self.env_type=env_type
         if env_type=='beta':
@@ -314,42 +323,18 @@ class Evolve_RG(object):
             print 'Temperature is',self.kt,'keV'
             self.kt*=1e3*eV
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
-        else:
-            raise Exception('env_type specified is not recognised')
-        self.setfunctions()
+
+        self.setfunctions() # raises exception if env_type is not known.
         self.cs=np.sqrt(5.0*self.kt/(3.0*m0))
-        try:
-            self.xi=kwargs['xi']
-        except:
-            self.xi=0.5
-        print 'Xi (energy fraction in lobes) set to',self.xi
-        try:
-            self.zeta=kwargs['zeta']
-        except:
-            self.zeta=0.1
-        print 'Zeta (equipartition parameter) set to',self.zeta
 
-        try:
-            self.qfactor=kwargs['qfactor']
-        except:
-            self.qfactor=c
-        print 'Q factor is',self.qfactor
+        for k,desc,default in keywords:
+            try:
+                value=kwargs[k]
+            except KeyError:
+                value=default
+            self.__dict__[k]=value
+            print '%s (%s) is' % (k,desc),value
 
-        try:
-            self.epsilon=kwargs['epsilon']
-        except:
-            self.epsilon=2.0
-
-
-        try:
-            self.do_adiabatic=kwargs['do_adiabatic']
-        except:
-            self.do_adiabatic=False
-
-        try:
-            self.Gamma=kwargs['Gamma']
-        except:
-            self.Gamma=4.0/3.0
         if self.Gamma==(4.0/3.0):
             self.prfactor=1.0/3.0
         elif self.Gamma==(5.0/3.0):
@@ -357,8 +342,9 @@ class Evolve_RG(object):
         else:
             raise RuntimeError('Adiabatic index is not understood')
             
-            
     def __getstate__(self):
+        # When being pickled, we need to remove the references to
+        # functions as they are not picklable. We will restore on unpickle.
         dict=self.__dict__.copy()
         del(dict['nr'])
         del(dict['pr'])
