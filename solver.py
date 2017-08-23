@@ -132,13 +132,14 @@ class Evolve_RG(object):
         limit=Rp*np.sqrt((1.0-z**2.0/R**2.0))
         if np.isnan(limit):
             print 'limit is nan:',z,R,Rp
-            stop
+            raise RuntimeError('Integration called with impossible bounds')
         return romberg(self.inner_int,0,limit,args=(z,R,Rp),divmax=20)
 
     def intn(self,R,Rp):
         if R==0 or Rp==0:
             return 0
-        result=romberg(self.outer_int,0,R,args=(R,Rp))
+        # factor 2 here since we integrate only one lobe
+        result=2.0*romberg(self.outer_int,0,R,args=(R,Rp))
         return result
 
     def vtot(self,R,Rp):
@@ -166,9 +167,14 @@ class Evolve_RG(object):
 
     def solve_rpb(self,pint,pext,dext):
         return self.solve_rel((pint-pext)/dext)
+
+    def rhp(self,p1,p0):
+        return np.sqrt((1.0/(2.0*self.Gamma))*((self.Gamma+1)*(p1/p0)-(1-self.Gamma)))
     
     def solve_mach(self,p1,p0):
-        return self.cs*np.sqrt((1.0/(2.0*self.Gamma))*((self.Gamma+1)*(p1/p0)-(1-self.Gamma)))
+        if p1<p0:
+            raise RuntimeError('Internal pressure must exceed external pressure')
+        return self.cs*self.rhp(p1,p0)
 
     def dL_dt(self,L,t,vl=None):
         R=L[0]
@@ -187,7 +193,7 @@ class Evolve_RG(object):
             ])
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
-        print 'Called:',t,R,Rp,vl,result/np.sqrt(5.0*self.kt/(3.0*0.6*1.6e-27))
+        print 'Called:',t,R,Rp,vl,result/self.cs
         return result
 
     def solve(self,Q,tv,tstop=None):
@@ -259,7 +265,7 @@ class Evolve_RG(object):
     def findcorrection(self,freqs,z=0,do_adiabatic=None,timerange=None):
         # adapted from agecorrection.py code
         if timerange is None:
-            timerange=range(len(times))
+            timerange=range(len(self.tv))
         synch.setspectrum(500,1e6,self.q)
         if do_adiabatic is not None:
             self.do_adiabatic=do_adiabatic
