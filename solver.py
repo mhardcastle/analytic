@@ -64,7 +64,6 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
 
     emiss=np.zeros_like(freq)
     uae=np.zeros_like(freq)
-
     for i in range(intervals+1):
 
         starttime=endtime*float(i)/float(intervals)
@@ -98,6 +97,54 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
                 emiss[j]+=factor*synch.emiss(1.0,bm[now],f)
                 synch.setage(1.0,b)
                 uae[j]+=factor*synch.emiss(1.0,bm[now],f)
+
+    return emiss/uae
+
+def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,verbose=False,do_adiabatic=False,tstop=None):
+
+    bsm=bm**2.0
+    endtime=time[now]
+    if verbose: print 'endtime is',endtime,'Myr'
+
+    emiss=np.zeros_like(freq)
+    uae=np.zeros_like(freq)
+    zeroage=np.zeros_like(freq)
+    synch.setage(1.0,1e-9)
+    for j,f in enumerate(freq):
+        zeroage[j]=synch.cmb_ic_emiss(1.0,f,z)
+
+    for i in range(intervals+1):
+
+        starttime=endtime*float(i)/float(intervals)
+        if tstop is not None and starttime>tstop:
+            starttime=tstop
+        if verbose: print 'interval',i
+        if verbose: print 'starttime is',starttime,'Myr'
+
+        if do_adiabatic:
+            vstart=np.interp(starttime,time,volumes)
+        
+        if (i==intervals):
+            b=np.sqrt(bm[now]**2.0+bcmb**2.0)
+        else:
+            b=intb(starttime,endtime,time,bsm,bcmb)
+        if verbose: print 'effective ageing field is',b
+        for j,f in enumerate(freq):
+            if f is None:
+                emiss[j]=1
+                uae[j]=1
+            else:
+                age=(endtime-starttime)*86400.0*365.0*1.0e6
+                if do_adiabatic:
+                    age*=(volumes[now]/vstart)**(1.0/3.0)
+                # trapezium rule factors
+                if i==0 or i==intervals:
+                    factor=0.5
+                else:
+                    factor=1.0
+                synch.setage(age,b)
+                emiss[j]+=factor*synch.cmb_ic_emiss(1.0,f,z)
+                uae[j]+=factor*zeroage[j]
 
     return emiss/uae
 
@@ -230,18 +277,25 @@ class Evolve_RG(object):
         self.m1=np.array(self.m1)
         self.mp1=np.array(self.mp1)
             
-    def findsynch(self,q,nu):
-        if self.Gamma!=4.0/3.0:
-            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
+    def init_synch(self,q):
         self.q=q
         self.alpha=0.5*(q-1)
-        self.nu_ref=nu
-        self.emax=1e8*m_e*c**2.0
-        self.emin=10*m_e*c**2.0
+        self.gmin=10
+        self.gmax=1e6
+        self.emax=self.gmax*m_e*c**2.0
+        self.emin=self.emax*m_e*c**2.0
+
         if q==2.0:
             self.I=np.log(self.emax/self.emin)
         else:
             self.I=(1.0/(2.0-q))*(self.emax**(2.0-q)-self.emin**(2.0-q))
+
+    def findsynch(self,q,nu):
+        if self.Gamma!=4.0/3.0:
+            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
+        self.nu_ref=nu
+        self.init_synch(q)
+        
         try:
             B=self.B
         except:
@@ -252,8 +306,18 @@ class Evolve_RG(object):
 
         # Longair 2010 eq. 8.130
         self.synch=2.344e-25*longair_a(q)*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
-        print self.synch
-            
+
+    def findic(self,q,nu,z):
+
+        self.nu_ic_ref=nu
+        self.init_synch(q)
+        
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+
+        self.ic=(self.xi*self.Q*times)/((1+self.zeta+self.kappa)*self.I)
+        synch.setspectrum(self.gmin,self.gmax,self.q)
+        self.ic*=synch.cmb_ic_emiss(1,nu,z)
+
     def findb(self):
         B=[]
         for i in range(len(self.tv)):
@@ -271,7 +335,7 @@ class Evolve_RG(object):
         # adapted from agecorrection.py code
         if timerange is None:
             timerange=range(len(self.tv))
-        synch.setspectrum(500,1e6,self.q)
+        synch.setspectrum(self.gmin,self.gmax,self.q)
         if do_adiabatic is not None:
             print 'Over-riding do_adiabatic setting to',do_adiabatic
             self.do_adiabatic=do_adiabatic
@@ -291,6 +355,31 @@ class Evolve_RG(object):
             print self.tv[i]
             corrs[i]=(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.corrs=corrs
+            
+    def ic_findcorrection(self,freqs,z=0,do_adiabatic=None,timerange=None):
+        # adapted from agecorrection.py code
+        if timerange is None:
+            timerange=range(len(self.tv))
+        synch.setspectrum(self.gmin,self.gmax,self.q)
+        if do_adiabatic is not None:
+            print 'Over-riding do_adiabatic setting to',do_adiabatic
+            self.do_adiabatic=do_adiabatic
+        self.freqs=freqs
+        redshift=z
+        cmbtemp=2.73
+        boltzmann=1.380658e-23
+        planck=6.6260755e-34
+        v_c=c
+
+        bcmb=np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+        print 'CMB energy density in B-field terms is %g T' % bcmb
+
+        corrs=np.ones((len(self.tv),len(freqs)))*np.nan
+        print 'Finding correction factors:'
+        for i in timerange:
+            print self.tv[i]
+            corrs[i]=(ic_agecorr_findcorrection(i,freqs,z,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
+        self.ic_corrs=corrs
             
     def setfunctions(self):
         if self.env_type=='beta':
