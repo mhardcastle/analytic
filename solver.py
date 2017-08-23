@@ -5,6 +5,7 @@ import pickle
 import synch
 
 from constants import *
+from longair_a import a as longair_a
 
 # imported from agecorrection
 def intb(st,end,time,bv,bcmb):
@@ -103,7 +104,7 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
 class Evolve_RG(object):
 
     def px(self,x):
-        return self.P0/((self.c500*x)**self.gamma)/(1+(self.c500*x)**self.alpha)**((self.beta-self.gamma)/self.alpha)
+        return self.P0/((self.c500*x)**self.gamma)/(1+(self.c500*x)**self.alpha_u)**((self.beta-self.gamma)/self.alpha_u)
 
     def app(self,x):
         return 0.10-(self.alpha_p+0.10)*(x/0.5)**3.0/(1.+(x/0.5)**3.0)
@@ -230,6 +231,8 @@ class Evolve_RG(object):
         self.mp1=np.array(self.mp1)
             
     def findsynch(self,q,nu):
+        if self.Gamma!=4.0/3.0:
+            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
         self.q=q
         self.alpha=0.5*(q-1)
         self.nu_ref=nu
@@ -244,9 +247,11 @@ class Evolve_RG(object):
         except:
             self.findb()
             B=self.B
-        # eqs from Longair
+
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
-        self.synch=2.344e-25*0.4*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
+
+        # Longair 2010 eq. 8.130
+        self.synch=2.344e-25*longair_a(q)*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
         print self.synch
             
     def findb(self):
@@ -268,6 +273,7 @@ class Evolve_RG(object):
             timerange=range(len(self.tv))
         synch.setspectrum(500,1e6,self.q)
         if do_adiabatic is not None:
+            print 'Over-riding do_adiabatic setting to',do_adiabatic
             self.do_adiabatic=do_adiabatic
         self.freqs=freqs
         redshift=z
@@ -321,7 +327,7 @@ class Evolve_RG(object):
             self.alpha_p=0.12
             self.c500=1.177
             self.gamma=0.3081
-            self.alpha=1.0510
+            self.alpha_u=1.0510
             self.beta=5.4905
             self.P0=8.403
             self.m500=kwargs['M500']

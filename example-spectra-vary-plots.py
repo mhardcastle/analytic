@@ -9,7 +9,7 @@ rc('text', usetex=True)
 
 plt.figure(figsize=(12,5.5))
 done_uncorr=False
-for name,label in zip(['example-universal-noad','example-universal','example-universal-highz'],['No adiabatic, $z=0$','Adiabatic, $z=0$','Adiabatic, $z=2$']):
+for name,label in zip(['example-universal-noad','example-universal','example-universal-highz'],['Radiative only, $z=0$','Radiative + adiabatic, $z=0$','Radiative + adiabatic, $z=2$']):
 
     env=Evolve_RG.load(name+'.pickle')
 
