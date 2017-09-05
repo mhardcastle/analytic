@@ -221,8 +221,10 @@ class Evolve_RG(object):
     
     def solve_mach(self,p1,p0):
         if p1<p0:
-            raise RuntimeError('Internal pressure must exceed external pressure')
-        return self.cs*self.rhp(p1,p0)
+            print 'Warning: internal pressure has fallen below external pressure'
+            return self.cs
+        else:
+            return self.cs*self.rhp(p1,p0)
 
     def dL_dt(self,L,t,vl=None):
         R=L[0]

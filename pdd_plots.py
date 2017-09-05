@@ -33,9 +33,9 @@ if __name__=='__main__':
     tv=np.logspace(-6,np.log10(tmax),100)*Myr
 
     if highz:
-        g=glob.glob('highz*.0_*.pickle')
+        g=glob.glob('highz*.pickle')
     else:
-        g=glob.glob('save*.0_*.pickle')
+        g=glob.glob('save_*.pickle')
 
     for f in g:
         sdict={}
