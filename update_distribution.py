@@ -11,6 +11,8 @@ d=[]
 alpha=[]
 live=[]
 remnant=[]
+u=np.random.uniform(size=len(t))
+theta=np.arccos(1-u)
 
 for i,r in enumerate(t):
     inname='run-%i.pickle' % i
@@ -30,4 +32,5 @@ t['D']=d
 t['alpha']=alpha
 t['live']=live
 t['remnant']=remnant
+t['theta']=theta
 t.write('source-table.fits',overwrite=True)

@@ -15,9 +15,9 @@ for t in [t1,t2]:
 
 plt.figure(figsize=(18,6))
 plt.subplot(1,3,1)
-_,bins,_=plt.hist(np.log10(t1['D']/kpc),alpha=0.5,normed=1,bins=30,color='red',label='Sample i')
-plt.hist(np.log10(t2['D']/kpc),alpha=0.5,normed=1,bins=bins,color='blue',label='Sample ii')
-plt.xlabel('$\log_{10}(D/{\\rm kpc})$')
+_,bins,_=plt.hist(np.log10(np.cos(t1['theta'])*t1['D']/kpc),alpha=0.5,normed=1,bins=30,color='red',label='Sample i')
+plt.hist(np.log10(np.cos(t2['theta'])*t2['D']/kpc),alpha=0.5,normed=1,bins=bins,color='blue',label='Sample ii')
+plt.xlabel('$\log_{10}(D_{\\rm projected}/{\\rm kpc})$')
 plt.ylabel('Number of objects (normalized)')
 plt.legend(loc=0)
 
