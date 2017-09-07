@@ -20,7 +20,7 @@ plt.scatter(t1nr['Q'],t1nr['l150'],c=t1nr['z'],alpha=0.6,label='Active')
 plt.scatter(t1r['Q'],t1r['l150'],c=t1r['z'],alpha=0.6,marker='x',label='Remnant')
 plt.xscale('log')
 plt.yscale('log')
-plt.xlabel('$Q$')
+plt.xlabel('$Q$ (W)')
 plt.ylabel('$L_{150}$ (W Hz$^{-1}$)')
 
 # Willott
@@ -33,7 +33,7 @@ for f in [1,20]:
     kwargs={}
 
 kwargs={'label':'Simulation range'}
-for norm in [5e25,5e27]:
+for norm in [7e25,7e27]:
     l150=norm*(q/1e38)
     plt.plot(q,l150,color='blue',**kwargs)
     kwargs={}

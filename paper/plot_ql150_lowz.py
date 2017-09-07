@@ -19,7 +19,7 @@ plt.scatter(t1nr['Q'],t1nr['l150'],c=np.log10(t1nr['M500']),alpha=0.6,label='Act
 plt.scatter(t1r['Q'],t1r['l150'],c=np.log10(t1r['M500']),alpha=0.6,marker='x',label='Remnant')
 plt.xscale('log')
 plt.yscale('log')
-plt.xlabel('$Q$')
+plt.xlabel('$Q$ (W)')
 plt.ylabel('$L_{150}$ (W Hz$^{-1}$)')
 
 # Willott
@@ -36,7 +36,7 @@ l150=4*np.pi*1e28*(q/5e39)**(1.0/0.89)
 plt.plot(q,l150,color='orange',label='Ineson+ 17')
 
 kwargs={'label':'Best linear fit'}
-for norm in [2.2e27]:
+for norm in [3e27]:
     l150=norm*(q/1e38)
     plt.plot(q,l150,color='blue',**kwargs)
     kwargs={}
