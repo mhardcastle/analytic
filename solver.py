@@ -285,7 +285,7 @@ class Evolve_RG(object):
         self.gmin=10
         self.gmax=1e6
         self.emax=self.gmax*m_e*c**2.0
-        self.emin=self.emax*m_e*c**2.0
+        self.emin=self.gmin*m_e*c**2.0
 
         if q==2.0:
             self.I=np.log(self.emax/self.emin)

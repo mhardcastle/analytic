@@ -13,6 +13,6 @@ def a(p):
 
 if __name__=='__main__':
     for p in [1,1.5,2,2.5,3,3.5,4,4.5,5]:
-        print "%3.1f %5.3f" % (p, longair_a(p))
+        print "%3.1f %5.3f" % (p, a(p))
         
     
