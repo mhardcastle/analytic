@@ -15,13 +15,13 @@ tmin=0
 tmax=300
 tv=np.logspace(-6,np.log10(tmax),100)*Myr
 
-env=Evolve_RG('beta',kT=0.86e3*eV,p0=2e-12,rc=22*1.528714*kpc,beta=0.67,do_adiabatic=False)
+env=Evolve_RG('beta',kT=0.86e3*eV,p0=2e-12,rc=22*1.528714*kpc,beta=0.67,do_adiabatic=False,q=2.1)
 #env=evolve_rg('universal',M500=1e14)
 for Q in np.logspace(37.5,39.5,5):
     print 'solving for',Q
     env.solve(Q,tv)
     env.findb()
-    env.findsynch(2.1,150e6)
+    env.findsynch(150e6)
     env.findcorrection((150e6,))
 
     axes[0].plot(tv/Myr,env.R/kpc)

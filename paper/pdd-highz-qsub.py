@@ -27,6 +27,6 @@ if __name__=='__main__':
         print 'solving for',Q,m
         #env.solve(Q,tv)
         #env.findb()
-        #env.findsynch(2.1,150e6)
+        #env.findsynch(150e6)
         env.findcorrection((150e6,1400e6),do_adiabatic=True,z=2)
         env.save(outfile)

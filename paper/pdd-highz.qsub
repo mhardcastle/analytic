@@ -1,5 +1,5 @@
 #!/bin/sh -f
-#PBS -N analytic
+#PBS -N analytic-highz
 #PBS -m a
 #PBS -l nodes=1:ppn=1
 #PBS -q main
@@ -24,4 +24,4 @@ echo PBS: PATH = $PBS_O_PATH
 echo --------------------------------------------
 
 cd /home/mjh/pdd
-python /home/mjh/git/analytic/pdd-qsub.py $PBS_ARRAYID
+python /home/mjh/git/analytic/paper/pdd-highz-qsub.py $PBS_ARRAYID

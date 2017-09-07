@@ -18,10 +18,10 @@ tv=np.logspace(-6,np.log10(tmax),100)*Myr
 #env=evolve_rg('universal',M500=1e14)
 Q=10**38.5
 for i in range(2):
-    env=Evolve_RG('beta',kT=0.86e3*eV,p0=2e-12,rc=22*1.528714*kpc,beta=0.67,do_adiabatic=True)
+    env=Evolve_RG('beta',kT=0.86e3*eV,p0=2e-12,rc=22*1.528714*kpc,beta=0.67,do_adiabatic=True,q=2.1)
     env.solve(Q,tv,tstop=Myr*(tmax-(i*200)))
     env.findb()
-    env.findsynch(2.1,150e6)
+    env.findsynch(150e6)
     env.findcorrection((150e6,))
 
     axes[0].plot(tv/Myr,env.R/kpc)

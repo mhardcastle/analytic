@@ -1,9 +1,9 @@
 #!/bin/sh -f
-#PBS -N analytic-highz
+#PBS -N distribution
 #PBS -m a
 #PBS -l nodes=1:ppn=1
 #PBS -q main
-#PBS -l walltime=12:00:00
+#PBS -l walltime=2:00:00
 #PBS -W group_list=lofar
 #PBS -k oe
 
@@ -23,5 +23,5 @@ echo PBS: current home directory is $PBS_O_HOME
 echo PBS: PATH = $PBS_O_PATH
 echo --------------------------------------------
 
-cd /home/mjh/pdd
-python /home/mjh/git/analytic/pdd-highz-qsub.py $PBS_ARRAYID
+cd /home/mjh/distribution2
+python /home/mjh/git/analytic/paper/run_distribution_qsub.py $PBS_ARRAYID

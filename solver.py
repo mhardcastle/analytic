@@ -279,11 +279,9 @@ class Evolve_RG(object):
         self.m1=np.array(self.m1)
         self.mp1=np.array(self.mp1)
             
-    def init_synch(self,q):
-        self.q=q
+    def init_synch(self):
+        q=self.q
         self.alpha=0.5*(q-1)
-        self.gmin=10
-        self.gmax=1e6
         self.emax=self.gmax*m_e*c**2.0
         self.emin=self.gmin*m_e*c**2.0
 
@@ -292,11 +290,11 @@ class Evolve_RG(object):
         else:
             self.I=(1.0/(2.0-q))*(self.emax**(2.0-q)-self.emin**(2.0-q))
 
-    def findsynch(self,q,nu):
+    def findsynch(self,nu):
         if self.Gamma!=4.0/3.0:
             raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
         self.nu_ref=nu
-        self.init_synch(q)
+        self.init_synch()
         
         try:
             B=self.B
@@ -307,12 +305,16 @@ class Evolve_RG(object):
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
 
         # Longair 2010 eq. 8.130
-        self.synch=2.344e-25*longair_a(q)*(self.xi*self.Q*times)*self.B**((q+1.0)/2.0)*(1.253e37/nu)**((q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
+        self.synch=2.344e-25*longair_a(self.q)*(self.xi*self.Q*times)*self.B**((self.q+1.0)/2.0)*(1.253e37/nu)**((self.q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
 
-    def findic(self,q,nu,z):
-
+    def findic(self,nu,z=None):
+        if z is None:
+            z=self.z
+        else:
+            self.z=z
+            print 'findic over-riding previously set z to %f' % z
         self.nu_ic_ref=nu
-        self.init_synch(q)
+        self.init_synch()
         
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
 
@@ -333,7 +335,13 @@ class Evolve_RG(object):
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta+self.kappa)))
         self.B=np.array(B)
 
-    def findcorrection(self,freqs,z=0,do_adiabatic=None,timerange=None):
+    def findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None):
+        if z is None:
+            z=self.z
+        else:
+            self.z=z
+            print 'findcorrection over-riding previously set z to %f' % z
+
         # adapted from agecorrection.py code
         if timerange is None:
             timerange=range(len(self.tv))
@@ -358,8 +366,13 @@ class Evolve_RG(object):
             corrs[i]=(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.corrs=corrs
             
-    def ic_findcorrection(self,freqs,z=0,do_adiabatic=None,timerange=None):
+    def ic_findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None):
         # adapted from agecorrection.py code
+        if z is None:
+            z=self.z
+        else:
+            self.z=z
+            print 'ic_findcorrection over-riding previously set z to %f' % z
         if timerange is None:
             timerange=range(len(self.tv))
         synch.setspectrum(self.gmin,self.gmax,self.q)
@@ -401,7 +414,11 @@ class Evolve_RG(object):
                     ('epsilon', 'Geometrical factor for momentum flux', 2),
                     ('qfactor', 'Energy/momentum conversion factor', c),
                     ('Gamma', 'Adiabatic index of lobe fluid', 4.0/3.0),
-                    ('do_adiabatic', 'Perform the adiabatic corrections', True))
+                    ('do_adiabatic', 'Perform the adiabatic corrections in synchrotron and inverse-Compton calculations', True),
+                    ('gmin', 'Minimum Lorentz factor of injected electrons', 10),
+                    ('gmax', 'Maximum Lorentz factor of injected electrons', 1e6),
+                    ('q', 'Power-law index for injected electrons', 2.0),
+                    ('z', 'Source redshift', 0))
         
         # initialize the evolution with an environment specified by env_type
         self.env_type=env_type
