@@ -22,7 +22,7 @@ plt.yscale('log')
 plt.xlabel('$L_{150}$ (W Hz$^{-1}$)')
 plt.ylabel('2-10 keV $L_{\\rm X}$ (erg s$^{-1}$)')
 
-plt.colorbar(label='$Q$')
+plt.colorbar(label='$\\log_{10}(Q/{\\rm W})$')
 plt.tight_layout()
 plt.savefig('plot_150m500.pdf')
 #plt.show()

@@ -27,7 +27,7 @@ for n,c,l in zip(names,colours,labels):
     tv=env.tv
 
     axes[0].plot(tv/Myr,env.R/kpc,color=c,label=l+' $R$')
-    rlobep=np.sqrt(3*env.vl/(4*np.pi*env.R))
+    rlobep=np.sqrt(env.vl/(4*np.pi*env.R))
     axes[0].plot(tv/Myr,env.Rp/kpc,ls=':',color=c,label=l+' $R_\\perp$')
     axes[0].plot(tv/Myr,rlobep/kpc,ls='--',color=c,label=l+' $R_{\\perp, lobe}$')
     if n=='universal': axes[0].plot(tv/Myr,40*(tv/Myr)**0.6,ls='-.',color='green',label='$R \propto t^{3/5}$')

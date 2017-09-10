@@ -45,7 +45,7 @@ if __name__=='__main__':
         plt.figure(1)
         plt.plot(tv/Myr,env.R/kpc,**sdict)
         plt.figure(2)
-        plt.plot(env.R/kpc,np.sqrt(env.vl/(2.0*np.pi*env.R**3.0/3.0)),**sdict)
+        plt.plot(env.R/kpc,np.sqrt(env.vl/(np.pi*env.R**3.0)),**sdict)
         plt.figure(3)
         plt.plot(env.R/kpc,env.synch*env.corrs[:,0],zorder=2,**sdict)
         plt.figure(4)
@@ -77,6 +77,8 @@ if __name__=='__main__':
     plt.scatter(t3c['Size']/2.0,t3c['alpha'],alpha=0.5,color='grey',label='3CRR',zorder=3)
     plt.xlim((1e-3,2e3))
     plt.ylim((0.55,1.2))
+    plt.figure(2)
+    plt.xlim((1e-3,2e3))
     figs=['lt.pdf','lax.pdf','lllr.pdf','spix.pdf']
 
     for fig in range(4):

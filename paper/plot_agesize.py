@@ -7,7 +7,7 @@ rc('font',**{'family':'serif','serif':['Times'],'size':14})
 rc('text', usetex=True)
 
 t1=Table.read('/home/mjh/distribution/obs-table.fits')
-t1['Dproj']=t1['D']*np.cos(t1['theta'])/kpc
+t1['Dproj']=t1['D']*np.sin(t1['theta'])/kpc
 t1['age']=1000-t1['Tstart']
 t1r=t1[t1['remnant']]
 t1nr=t1[~t1['remnant']]
