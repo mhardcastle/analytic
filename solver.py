@@ -428,7 +428,6 @@ class Evolve_RG(object):
             self.beta=kwargs['beta']
             self.p0=kwargs['p0']
             self.n0=self.p0/self.kt # particles / m^3
-            self.rho0=m0*self.n0 # kg/m^3
         elif env_type=='universal':
             # Universal cluster pressure profile from Arnaud et al
             mass0=3.84e14 # normalization

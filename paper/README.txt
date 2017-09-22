@@ -38,7 +38,7 @@ pdfcrop example-tstop-spectra.pdf
 # Fig 6 Inverse-Compton LC
 
 python $AP/plot_remnant_ic.py
-pdfcrop remnant_ic-crop.pdf
+pdfcrop remnant_ic.pdf
 
 # Fig 7 PDD
 
