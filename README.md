@@ -91,3 +91,8 @@ Later on you can load it again:
 ```
 new_env = Evolve_RG.load('output.pickle')
 ```
+
+## Tests
+
+The code in `test/test_plots.py` tests most of the key routines. It
+takes a few minutes to run.
