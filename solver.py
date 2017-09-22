@@ -151,6 +151,16 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
 class Evolve_RG(object):
     '''
     Class which sets up and runs the radio galaxy evolution model.
+    Methods generally update attributes, see method docstrings for details.
+    Public methods include:
+    solve             -- solve for the dynamics
+    findb             -- find magnetic field strength
+    findsynch         -- find synchrotron emission
+    findic            -- find inverse-Compton emission
+    findcorrection    -- find loss corrections for synchrotron
+    ic_findcorrection -- find loss corrections for inverse-Compton
+    save              -- save the current state
+    load              -- load a previously saved state (unbound method)
     '''
     def _px(self,x):
         return self.P0/((self.c500*x)**self.gamma)/(1+(self.c500*x)**self.alpha_u)**((self.beta-self.gamma)/self.alpha_u)
@@ -333,7 +343,7 @@ class Evolve_RG(object):
         
         try:
             B=self.B
-        except:
+        except AttributeError:
             self.findb()
             B=self.B
 
@@ -397,6 +407,13 @@ class Evolve_RG(object):
         corrs        -- the correction factors per frequency (times, freqs)
         corr_synch   -- the corrected synchrotron luminosity density (W/Hz)
         '''
+
+        try:
+            self.synch
+        except AttributeError:
+            print 'Warning: findsynch not previously run, running it now'
+            self.findsynch(nu=freqs[0])
+
         if z is None:
             z=self.z
         else:
@@ -446,7 +463,14 @@ class Evolve_RG(object):
         ic_corrs     -- the inverse-Compton correction factors per frequency (times, freqs)
         corr_ic      -- the corrected inverse-Compton luminosity density (W/Hz)
         '''
-        # adapted from agecorrection.py code
+
+        try:
+            self.ic
+        except AttributeError:
+            print 'Warning: findic not previously run, running it now'
+            self.findic(nu=freqs[0])
+
+
         if z is None:
             z=self.z
         else:

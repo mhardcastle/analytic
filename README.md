@@ -74,11 +74,11 @@ After this some more attributes are set:
 * `env.nu_ref` is the reference frequency supplied (Hz)
 * `env.B` is the magnetic field strength (T)
 * `env.synch` is the uncorrected synchrotron luminosity at the
-  reference frequency.
-* `env.freqs` are the frequencies at which corrections were requested
+  reference frequency (W/Hz)
+* `env.freqs` are the frequencies at which corrections were requested (Hz)
 * `env.corrs` is an array of corrections with size (number of times, number of freqs).
 * `env.corr_synch` is an array of synchrotron luminosities after
-  correction with the same size as `env.corrs`
+  correction with the same size as `env.corrs` (W/Hz)
 
 At any time you may save the output
 
