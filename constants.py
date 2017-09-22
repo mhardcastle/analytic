@@ -1,9 +1,12 @@
 import numpy as np
 
-c=3e8
-Myr=1e6*365*86400.0
-kpc=1e3*3e16
-m0=0.6*1.6e-27 # kg
-eV=1.6e-19
+c=299782458 # m/s
+Myr=1e6*365*86400.0 # s
+pc=3.0857e16 # m
+kpc=1e3*pc
+Mpc=1e3*kpc
+m_p=1.6726e-27  # kg
+m0=0.6*m_p
+eV=1.6022e-19 # J
 mu0=4.0*np.pi*1e-7
-m_e=9.1e-31
+m_e=9.109e-31 # kg
