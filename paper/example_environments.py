@@ -21,6 +21,7 @@ for env,l in zip(envs,labels):
         env=Evolve_RG.load(outname)
     else:
         env.solve(Q,tv)
+    env.save(outname)
 
     env.findb()
     env.findsynch(150e6)

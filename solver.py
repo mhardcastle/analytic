@@ -148,6 +148,9 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
 
     return emiss/uae
 
+def vcomb(v):
+    return np.sqrt(0.5*(v[0]**2+v[1]**2))
+
 class Evolve_RG(object):
     '''
     Class which sets up and runs the radio galaxy evolution model.
@@ -209,9 +212,9 @@ class Evolve_RG(object):
         '''
         return (4.0/3.0)*np.pi*R*Rp**2.0
 
-    def vlobe(self,R,Rp,t):
+    def vlobe(self,R,Rp,v,t):
         '''
-        Compute volume of the lobe given R, Rp, t
+        Compute volume of the lobe given R, Rp, v, t
         '''
         try:
             N=self.ndict[(R,Rp)]
@@ -224,9 +227,9 @@ class Evolve_RG(object):
             time=t
 
         if self.Gamma==(4.0/3.0):
-            return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+3*N*self.kt))
+            return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+N*(3*self.kt-m0*v**2.0)))
         else:
-            return self.vtot(R,Rp)*(self.xi*self.Q*time/(self.Q*time+3*N*self.kt/2.0))
+            raise NotImplementedError('gamma needs to be 4/3')
 
     def _solve_rel(self,X):
     # solve the equation Gamma v^2 = X for v
@@ -240,16 +243,17 @@ class Evolve_RG(object):
     
     def _solve_mach(self,p1,p0):
         if p1<p0:
-            print 'Warning: internal pressure has fallen below external pressure'
+            # print 'Warning: internal pressure has fallen below external pressure'
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
 
-    def _dL_dt(self,L,t,vl=None):
+    def dL_dt_vest(self,L,t,v_est):
         R=L[0]
         Rp=L[1]
-        if vl is None:
-            vl=self.vlobe(R,Rp,t)
+
+        vl=self.vlobe(R,Rp,v_est,t)
+        self.tempvl=vl
         if t<=self.tstop:
             internal=self.prfactor*(self.xi*self.Q*t)/vl
             ram=self.epsilon*(self.Q*R)/(2*self.qfactor*vl)
@@ -262,9 +266,90 @@ class Evolve_RG(object):
             ])
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
-        if self.verbose:
-            print 'Called:',t,R,Rp,vl,result/self.cs
+
         return result
+
+    def iter_dLdt(self,L,t,verbose=False):
+        '''
+        Attempt to find a self-consistent velocity solution
+        dLdt takes an estimated speed for ke and returns the velocity vector
+        iterative solving works by bisection, i.e. we are trying to solve for the difference between the input and output velocity being zero
+        '''
+        v0=np.array([self.cs,self.cs])
+        r0=self.dL_dt_vest(L,t,vcomb(v0))
+        v2=r0
+        r2=self.dL_dt_vest(L,t,vcomb(v2))
+        v1=(v0+v2)/2.0
+        r1=self.dL_dt_vest(L,t,vcomb(v1))
+        d0=vcomb(v0)-vcomb(r0)
+        d1=vcomb(v1)-vcomb(r1)
+        d2=vcomb(v2)-vcomb(r2)
+
+        iter=0
+        while iter<100:
+            #print iter,v1,r1,d1
+            if np.sign(d1)==np.sign(d0):
+                # new midpoint between 1 and 2
+                v0=v1
+                r0=r1
+                d0=d1
+            else:
+                v2=v1
+                r2=r1
+                d2=d1
+            v1=(v0+v2)/2.0
+            v1=np.where(v1<self.cs,self.cs,v1)
+            #print v0,v1,v2
+            d1_old=d1
+            r1=self.dL_dt_vest(L,t,vcomb(v1))
+            d1=vcomb(v1)-vcomb(r1)
+            if iter>10 and (np.sum(np.abs(d1_old-d1))/np.sum(v1))<1e-8:
+                break
+
+            iter+=1
+        print 'dLdt: returning:',t,L,r1,iter
+        return r1
+
+    
+    def iter_dLdt_old(self,L,t,verbose=False):
+        '''
+        Attempt to find a self-consistent velocity solution
+        dLdt takes an estimated speed for ke and returns the velocity vector
+        iterative solving works by bisection, i.e. we are trying to minimize
+        the difference between the input and the output velocity
+        '''
+        v0=np.array([0,0])
+        r0=self.dL_dt_vest(L,t,vcomb(v0))
+        v2=r0
+        r2=self.dL_dt_vest(L,t,vcomb(v2))
+        v1=(v0+v2)/2.0
+        r1=self.dL_dt_vest(L,t,vcomb(v1))
+        d0=abs(vcomb(v0)-vcomb(r0))
+        d1=abs(vcomb(v1)-vcomb(r1))
+        d2=abs(vcomb(v2)-vcomb(r2))
+
+        iter=0
+        while iter<100:
+            if verbose: print iter,v1,r1,d1
+            r1_old=r1
+            if d0>d2:
+                # new midpoint between 1 and 2
+                v0=v1
+                r0=r1
+                d0=d1
+            else:
+                v2=v1
+                r2=r1
+                d2=d1
+            v1=(v0+v2)/2.0
+            r1=self.dL_dt_vest(L,t,vcomb(v1))
+            if (np.sum(np.abs(r1_old-r1))/np.sum(r1))<1e-6:
+                break
+            d1=abs(vcomb(v1)-vcomb(r1))
+            
+            iter+=1
+        print 'dLdt: returning:',t,L,r1,iter
+        return r1
 
     def solve(self,Q,tv,tstop=None):
         '''
@@ -291,7 +376,7 @@ class Evolve_RG(object):
         if self.verbose:
             print 'tstop is',self.tstop
         self.ndict={}
-        self.results=odeint(self._dL_dt,[c*tv[0],c*tv[0]],tv)
+        self.results=odeint(self.iter_dLdt,[c*tv[0],c*tv[0]],tv)
         self.R=self.results[:,0]
         self.Rp=self.results[:,1]
         # now redo to find speeds etc
@@ -301,12 +386,12 @@ class Evolve_RG(object):
         self.vl=[]
         self.vt=[]
         for i in range(len(self.R)):
-            vl=self.vlobe(self.R[i],self.Rp[i],tv[i])
             vt=self.vtot(self.R[i],self.Rp[i])
-            self.vl.append(vl)
             self.vt.append(vt)
+            speeds=self.iter_dLdt([self.R[i],self.Rp[i]],tv[i])
+            vl=self.tempvl # stored here by dLdt
+            self.vl.append(vl)
             self.rlobe.append(vl/vt)
-            speeds=self._dL_dt([self.R[i],self.Rp[i]],tv[i],vl)
             self.m1.append(speeds[0]/self.cs)
             self.mp1.append(speeds[1]/self.cs)
         self.vl=np.array(self.vl)
