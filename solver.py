@@ -148,8 +148,10 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
 
     return emiss/uae
 
-def vcomb(v):
-    return np.sqrt(0.5*(v[0]**2+v[1]**2))
+def vcomb(v,L):
+    R=L[0]
+    Rp=L[1]
+    return np.sqrt(((Rp/R)*v[0]**2+v[1]**2)/(1+(Rp/R)))
 
 class Evolve_RG(object):
     '''
@@ -226,10 +228,18 @@ class Evolve_RG(object):
         else:
             time=t
 
+        r=((self.Gamma_j-1)*self.xi*self.Q*time/
+                                ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
+                                 N*self.kt - (self.Gamma_s - 1)*N*m0*(v**2.0)/2.0))
+
+        #if r>1: r=1
+        return self.vtot(R,Rp)*r
+        '''
         if self.Gamma==(4.0/3.0):
             return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+N*(3*self.kt-m0*v**2.0)))
         else:
             raise NotImplementedError('gamma needs to be 4/3')
+        '''
 
     def _solve_rel(self,X):
     # solve the equation Gamma v^2 = X for v
@@ -239,7 +249,7 @@ class Evolve_RG(object):
         return self._solve_rel((pint-pext)/dext)
 
     def _rhp(self,p1,p0):
-        return np.sqrt((1.0/(2.0*self.Gamma))*((self.Gamma+1)*(p1/p0)-(1-self.Gamma)))
+        return np.sqrt((1.0/(2.0*self.Gamma_s))*((self.Gamma_s+1)*(p1/p0)-(1-self.Gamma_s)))
     
     def _solve_mach(self,p1,p0):
         if p1<p0:
@@ -276,14 +286,14 @@ class Evolve_RG(object):
         iterative solving works by bisection, i.e. we are trying to solve for the difference between the input and output velocity being zero
         '''
         v0=np.array([self.cs,self.cs])
-        r0=self.dL_dt_vest(L,t,vcomb(v0))
+        r0=self.dL_dt_vest(L,t,vcomb(v0,L))
         v2=r0
-        r2=self.dL_dt_vest(L,t,vcomb(v2))
+        r2=self.dL_dt_vest(L,t,vcomb(v2,L))
         v1=(v0+v2)/2.0
-        r1=self.dL_dt_vest(L,t,vcomb(v1))
-        d0=vcomb(v0)-vcomb(r0)
-        d1=vcomb(v1)-vcomb(r1)
-        d2=vcomb(v2)-vcomb(r2)
+        r1=self.dL_dt_vest(L,t,vcomb(v1,L))
+        d0=vcomb(v0,L)-vcomb(r0,L)
+        d1=vcomb(v1,L)-vcomb(r1,L)
+        d2=vcomb(v2,L)-vcomb(r2,L)
 
         iter=0
         while iter<100:
@@ -301,8 +311,8 @@ class Evolve_RG(object):
             v1=np.where(v1<self.cs,self.cs,v1)
             #print v0,v1,v2
             d1_old=d1
-            r1=self.dL_dt_vest(L,t,vcomb(v1))
-            d1=vcomb(v1)-vcomb(r1)
+            r1=self.dL_dt_vest(L,t,vcomb(v1,L))
+            d1=vcomb(v1,L)-vcomb(r1,L)
             if iter>10 and (np.sum(np.abs(d1_old-d1))/np.sum(v1))<1e-8:
                 break
 
@@ -421,7 +431,7 @@ class Evolve_RG(object):
         nu_ref -- the reference frequency
         synch  -- the uncorrected synchrotron luminosity (W/Hz)
         '''
-        if self.Gamma!=4.0/3.0:
+        if self.Gamma_j!=4.0/3.0:
             raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
         self.nu_ref=nu
         self._init_synch()
@@ -610,7 +620,8 @@ class Evolve_RG(object):
         kappa        -- Ratio between non-radiating and electron energy density
         epsilon      -- Geometrical factor for momentum flux
         qfactor      -- Energy-momentum conversion factor (m/s)
-        Gamma        -- Adiabatic index of the lobes. Should be 4.0/3.0 or 5.0/3.0
+        Gamma_j        -- Adiabatic index of the lobes and jets. Defaults to 4/3
+        Gamma_s        -- Adiabatic index of the shocks. Defaults to 5/3
         do_adiabatic -- Boolean controlling whether adiabatic corrections are applied
         gmin         -- Minimum Lorentz factor of the lobe electrons
         gmax         -- Maximum Lorentz factor of the lobe electrons
@@ -630,9 +641,10 @@ class Evolve_RG(object):
         keywords = (('xi','Energy fraction in lobes',0.5),
                     ('zeta', 'Magnetic field/electron energy ratio', 0.1),
                     ('kappa', 'Non-radiating particle/electron energy ratio', 0),
-                    ('epsilon', 'Geometrical factor for momentum flux', 2),
+                    ('epsilon', 'Geometrical factor for momentum flux', 4),
                     ('qfactor', 'Energy/momentum conversion factor', c),
-                    ('Gamma', 'Adiabatic index of lobe fluid', 4.0/3.0),
+                    ('Gamma_j', 'Adiabatic index of jet/lobe fluid', 4.0/3.0),
+                    ('Gamma_s', 'Adiabatic index of shocked material', 5.0/3.0),
                     ('do_adiabatic', 'Perform the adiabatic corrections in synchrotron and inverse-Compton calculations', True),
                     ('gmin', 'Minimum Lorentz factor of injected electrons', 10),
                     ('gmax', 'Maximum Lorentz factor of injected electrons', 1e6),
@@ -664,7 +676,6 @@ class Evolve_RG(object):
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
 
         self._setfunctions() # raises exception if env_type is not known.
-        self.cs=np.sqrt(5.0*self.kt/(3.0*m0))
 
         for k,desc,default in keywords:
             try:
@@ -674,12 +685,8 @@ class Evolve_RG(object):
             self.__dict__[k]=value
             print '%s (%s) is' % (k,desc),value
 
-        if self.Gamma==(4.0/3.0):
-            self.prfactor=1.0/3.0
-        elif self.Gamma==(5.0/3.0):
-            self.prfactor=2.0/3.0
-        else:
-            raise RuntimeError('Adiabatic index is not understood')
+        self.cs=np.sqrt(self.Gamma_s*self.kt/m0)
+        self.prfactor=self.Gamma_j-1.0
             
     def __getstate__(self):
         # When being pickled, we need to remove the references to
