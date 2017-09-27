@@ -25,7 +25,7 @@ for i,z in enumerate([0,2]):
         env.findcorrection([150e6],z=z,do_adiabatic=True)
     env.ic_findcorrection([2.4e17],z=z,do_adiabatic=True)
     
-    plt.plot(env.tv/Myr,env.synch*env.corrs[:,0]/1e10,label='Synchrotron (scaled)')
+    plt.plot(env.tv/Myr,env.corr_synch[:,0]/1e10,label='Synchrotron (scaled)')
     plt.plot(env.tv/Myr,env.ic,label='IC uncorrected')
     plt.plot(env.tv/Myr,env.corr_ic[:,0],label='IC corrected')
     if i==0:
