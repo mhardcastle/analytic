@@ -596,7 +596,7 @@ class Evolve_RG(object):
             corrs[i]=(ic_agecorr_findcorrection(i,freqs,z,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.ic_corrs=corrs
         cs=np.zeros_like(corrs)
-        for i,f in enumerate(self.freqs):
+        for i,f in enumerate(self.ic_freqs):
             cs[:,i]=(self.ic*self.ic_corrs[:,i]*(f/self.nu_ic_ref)**-self.alpha)
         self.corr_ic=cs
            
