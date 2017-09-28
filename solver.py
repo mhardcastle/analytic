@@ -643,9 +643,7 @@ class Evolve_RG(object):
         do_adiabatic -- boolean specifying whether adiabatic corrections should be done
         timerange    -- a list of the _indices_ of the time values to find the correction for. If unset, do all of them.
         Updated attributes:
-        freqs        -- the frequencies at which corrections were found
-        corrs        -- the correction factors per frequency (times, freqs)
-        corr_synch   -- the corrected synchrotron luminosity density (W/Hz)
+        losscorrs    -- the correction factors per frequency (times, freqs)
         '''
 
         try:
