@@ -10,3 +10,6 @@ m0=0.6*m_p
 eV=1.6022e-19 # J
 mu0=4.0*np.pi*1e-7
 m_e=9.109e-31 # kg
+sigma_T=6.652e-29 # m^2
+boltzmann=1.380658e-23 # J/K
+planck=6.6260755e-34 # J s

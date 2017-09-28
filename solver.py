@@ -7,6 +7,11 @@ import synch
 from constants import *
 from longair_a import a as longair_a
 
+def findbcmb(redshift):
+    cmbtemp=2.73
+    v_c=c
+    return np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+
 # imported from agecorrection
 def intb(st,end,time,bv,bcmb):
     '''
@@ -34,6 +39,45 @@ def intb(st,end,time,bv,bcmb):
     b/=(end-st)
     b+=bcmb**2.0
     return np.sqrt(b)
+
+def loss_findcorrection(now,time,bm,bcmb,intervals=25,volumes=None,verbose=False,do_adiabatic=False,tstop=None):
+    
+    bsm=bm**2.0
+    endtime=time[now]
+    if verbose: print 'endtime is',endtime,'Myr'
+
+    loss=0
+    ual=0
+    for i in range(intervals+1):
+
+        starttime=endtime*float(i)/float(intervals)
+        if tstop is not None and starttime>tstop:
+            starttime=tstop
+        if verbose: print 'interval',i
+        if verbose: print 'starttime is',starttime,'Myr'
+
+        if do_adiabatic:
+            vstart=np.interp(starttime,time,volumes)
+        
+        if (i==intervals):
+            b=np.sqrt(bm[now]**2.0+bcmb**2.0)
+        else:
+            b=intb(starttime,endtime,time,bsm,bcmb)
+        if verbose: print 'effective ageing field is',b
+        age=(endtime-starttime)*86400.0*365.0*1.0e6
+        if do_adiabatic:
+            age*=(volumes[now]/vstart)**(1.0/3.0)
+            # trapezium rule factors
+        if i==0 or i==intervals:
+            factor=0.5
+        else:
+            factor=1.0
+        synch.setage(age,b)
+        loss+=factor*synch.loss(1.0,bm[now])
+        synch.setage(0,b)
+        ual+=factor*synch.loss(1.0,bm[now])
+
+    return loss/ual
 
 def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbose=False,do_adiabatic=False,tstop=None):
     '''
@@ -160,10 +204,15 @@ class Evolve_RG(object):
     Public methods include:
     solve             -- solve for the dynamics
     findb             -- find magnetic field strength
-    findsynch         -- find synchrotron emission
-    findic            -- find inverse-Compton emission
+    findsynch         -- find synchrotron emission (uncorrected)
+    findic            -- find inverse-Compton emission (uncorrected)
     findcorrection    -- find loss corrections for synchrotron
     ic_findcorrection -- find loss corrections for inverse-Compton
+    finds_loss        -- find total synchrotron loss rate (uncorrected)
+    findic_loss       -- find total IC loss rate (uncorrected)
+    findlosscorrection-- find correction factor for losses in synch/IC
+    find_shellt       -- find physical conditions in the shocked shell
+    findbs_loss       -- find thermal bremsstrahlung losses from shocked shell
     save              -- save the current state
     load              -- load a previously saved state (unbound method)
     '''
@@ -409,6 +458,35 @@ class Evolve_RG(object):
         self.rlobe=np.array(self.rlobe)
         self.m1=np.array(self.m1)
         self.mp1=np.array(self.mp1)
+
+    def find_shellt(self):
+        '''Find the shell temperature and other useful physical parameters as
+        a function of time, assuming solve has been run. Values before
+        and around the transition from relativistic to
+        non-relativistic values should not be relied on.
+        Updated attributes:
+        ns -- an array matching tv of the total particle number N in the shell
+        es -- an array matching tv of the total thermal energy in the shell (W)
+        ts -- an array matching tv of the temperature in the shell (K)
+
+        '''
+        ns=[]
+        es=[]
+        ts=[]
+        for i in range(len(self.R)):
+            # compute the thermal energy in the shocked shell
+            times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+            N=self.ndict[(self.R[i],self.Rp[i])]
+            speed=self.cs*np.array([self.m1[i],self.mp1[i]])
+            E = ( (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt -
+                  0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0)
+            T = (self.Gamma_s-1)*(E/N)/boltzmann
+            ns.append(N)
+            es.append(E)
+            ts.append(T)
+        self.ns=np.array(ns)
+        self.es=np.array(es)
+        self.ts=np.array(ts)
             
     def _init_synch(self):
         ''' Set up the synchrotron parameters '''
@@ -422,6 +500,74 @@ class Evolve_RG(object):
         else:
             self.I=(1.0/(2.0-q))*(self.emax**(2.0-q)-self.emin**(2.0-q))
 
+        if q==3.0:
+            self.Iloss=np.log(self.emax/self.emin)
+        else:
+            self.Iloss=(1.0/(3.0-q))*(self.emax**(3.0-q)-self.emin**(3.0-q))
+
+    def finds_loss(self):
+        '''
+        Compute the total synchrotron loss rate, neglecting the effect of
+        losses that have already happened
+        Updated attributes:
+        loss -- The synchrotron power (W)
+
+        '''
+        
+        if self.Gamma_j!=4.0/3.0:
+            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
+
+        self._init_synch()
+        
+        try:
+            B=self.B
+        except AttributeError:
+            self.findb()
+            B=self.B
+
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+
+        self.loss=self.Iloss*(self.xi*self.Q*times)*(B**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
+
+    def findic_loss(self,z=None):
+        '''
+        Compute the total IC loss rate, neglecting the effect of
+        losses that have already happened
+        Updated attributes:
+        ic_loss -- The IC power (W)
+
+        '''
+
+        if self.Gamma_j!=4.0/3.0:
+            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
+
+        self._init_synch()
+
+        if z is None:
+            z=self.z
+
+        bcmb=findbcmb(z)
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+
+        self.ic_loss=self.Iloss*(self.xi*self.Q*times)*(bcmb**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
+
+    def findbs_loss(self):
+        '''
+        Compute the total bremsstrahlung loss rate, neglecting the effect of
+        losses that have already happened
+        Updated attributes:
+        bs_loss -- The thermal bremsstrahlung power (W)
+
+        '''
+        try:
+            self.ts
+        except AttributeError:
+            self.find_shellt()
+        vs=self.vt-self.vl
+        P=1.2*1.44e-40*(1.18/2.18**2.0)*self.ns**2.0*self.ts**(0.5)/vs
+        self.bs_loss=P
+
+            
     def findsynch(self,nu):
         '''
         Compute synchrotron emission.
@@ -489,6 +635,51 @@ class Evolve_RG(object):
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta+self.kappa)))
         self.B=np.array(B)
 
+    def findlosscorrection(self,z=None,do_adiabatic=None,timerange=None):
+        '''
+        Find corrections to the simple synchrotron loss formula.
+        Parameters:
+        z            -- the redshift. If undefined defaults to the value already chosen
+        do_adiabatic -- boolean specifying whether adiabatic corrections should be done
+        timerange    -- a list of the _indices_ of the time values to find the correction for. If unset, do all of them.
+        Updated attributes:
+        freqs        -- the frequencies at which corrections were found
+        corrs        -- the correction factors per frequency (times, freqs)
+        corr_synch   -- the corrected synchrotron luminosity density (W/Hz)
+        '''
+
+        try:
+            self.loss
+        except AttributeError:
+            print 'Warning: finds_loss not previously run, running it now'
+            self.finds_loss()
+
+        if z is None:
+            z=self.z
+        else:
+            self.z=z
+            print 'findcorrection over-riding previously set z to %f' % z
+
+        # adapted from agecorrection.py code
+        if timerange is None:
+            timerange=range(len(self.tv))
+        synch.setspectrum(self.gmin,self.gmax,self.q)
+        if do_adiabatic is not None:
+            print 'Over-riding do_adiabatic setting to',do_adiabatic
+            self.do_adiabatic=do_adiabatic
+
+        bcmb=findbcmb(z)
+        if self.verbose:
+            print 'CMB energy density in B-field terms is %g T' % bcmb
+
+        corrs=np.ones_like(self.tv)*np.nan
+        if self.verbose:
+            print 'Finding correction factors:'
+        for i in timerange:
+            if self.verbose: print self.tv[i]
+            corrs[i]=(loss_findcorrection(i,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
+        self.losscorrs=corrs
+
     def findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None):
         '''
         Find corrections to the simple synchrotron formula.
@@ -523,13 +714,8 @@ class Evolve_RG(object):
             print 'Over-riding do_adiabatic setting to',do_adiabatic
             self.do_adiabatic=do_adiabatic
         self.freqs=freqs
-        redshift=z
-        cmbtemp=2.73
-        boltzmann=1.380658e-23
-        planck=6.6260755e-34
-        v_c=c
 
-        bcmb=np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+        bcmb=findbcmb(z)
         if self.verbose:
             print 'CMB energy density in B-field terms is %g T' % bcmb
 
@@ -578,13 +764,7 @@ class Evolve_RG(object):
             print 'Over-riding do_adiabatic setting to',do_adiabatic
             self.do_adiabatic=do_adiabatic
         self.ic_freqs=freqs
-        redshift=z
-        cmbtemp=2.73
-        boltzmann=1.380658e-23
-        planck=6.6260755e-34
-        v_c=c
-
-        bcmb=np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+        bcmb=findbcmb(z)
         if self.verbose:
             print 'CMB energy density in B-field terms is %g T' % bcmb
 
