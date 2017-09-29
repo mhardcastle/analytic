@@ -17,12 +17,11 @@ Q=2e39
 
 for env,l in zip(envs,labels):
     outname='example-'+l+'.pickle'
-    if os.path.isfile(outname):
-        env=Evolve_RG.load(outname)
-    else:
+    if not os.path.isfile(outname):
         env.solve(Q,tv)
+        env.save(outname)
 
-    env.findb()
-    env.findsynch(150e6)
-    env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True)
-    env.save(outname)
+        env.findb()
+        env.findsynch(150e6)
+        env.findcorrection((150e6,330e6,1.4e9,5e9,8e9,15e9),do_adiabatic=True)
+        env.save(outname)

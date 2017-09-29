@@ -7,6 +7,11 @@ import synch
 from constants import *
 from longair_a import a as longair_a
 
+def findbcmb(redshift):
+    cmbtemp=2.73
+    v_c=c
+    return np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+
 # imported from agecorrection
 def intb(st,end,time,bv,bcmb):
     '''
@@ -34,6 +39,45 @@ def intb(st,end,time,bv,bcmb):
     b/=(end-st)
     b+=bcmb**2.0
     return np.sqrt(b)
+
+def loss_findcorrection(now,time,bm,bcmb,intervals=25,volumes=None,verbose=False,do_adiabatic=False,tstop=None):
+    
+    bsm=bm**2.0
+    endtime=time[now]
+    if verbose: print 'endtime is',endtime,'Myr'
+
+    loss=0
+    ual=0
+    for i in range(intervals+1):
+
+        starttime=endtime*float(i)/float(intervals)
+        if tstop is not None and starttime>tstop:
+            starttime=tstop
+        if verbose: print 'interval',i
+        if verbose: print 'starttime is',starttime,'Myr'
+
+        if do_adiabatic:
+            vstart=np.interp(starttime,time,volumes)
+        
+        if (i==intervals):
+            b=np.sqrt(bm[now]**2.0+bcmb**2.0)
+        else:
+            b=intb(starttime,endtime,time,bsm,bcmb)
+        if verbose: print 'effective ageing field is',b
+        age=(endtime-starttime)*86400.0*365.0*1.0e6
+        if do_adiabatic:
+            age*=(volumes[now]/vstart)**(1.0/3.0)
+            # trapezium rule factors
+        if i==0 or i==intervals:
+            factor=0.5
+        else:
+            factor=1.0
+        synch.setage(age,b)
+        loss+=factor*synch.loss(1.0,bm[now])
+        synch.setage(0,b)
+        ual+=factor*synch.loss(1.0,bm[now])
+
+    return loss/ual
 
 def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbose=False,do_adiabatic=False,tstop=None):
     '''
@@ -148,6 +192,11 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
 
     return emiss/uae
 
+def vcomb(v,L):
+    R=L[0]
+    Rp=L[1]
+    return np.sqrt(((Rp/R)*v[0]**2+v[1]**2)/(1+(Rp/R)))
+
 class Evolve_RG(object):
     '''
     Class which sets up and runs the radio galaxy evolution model.
@@ -155,10 +204,15 @@ class Evolve_RG(object):
     Public methods include:
     solve             -- solve for the dynamics
     findb             -- find magnetic field strength
-    findsynch         -- find synchrotron emission
-    findic            -- find inverse-Compton emission
+    findsynch         -- find synchrotron emission (uncorrected)
+    findic            -- find inverse-Compton emission (uncorrected)
     findcorrection    -- find loss corrections for synchrotron
     ic_findcorrection -- find loss corrections for inverse-Compton
+    finds_loss        -- find total synchrotron loss rate (uncorrected)
+    findic_loss       -- find total IC loss rate (uncorrected)
+    findlosscorrection-- find correction factor for losses in synch/IC
+    find_shellt       -- find physical conditions in the shocked shell
+    findbs_loss       -- find thermal bremsstrahlung losses from shocked shell
     save              -- save the current state
     load              -- load a previously saved state (unbound method)
     '''
@@ -209,9 +263,9 @@ class Evolve_RG(object):
         '''
         return (4.0/3.0)*np.pi*R*Rp**2.0
 
-    def vlobe(self,R,Rp,t):
+    def vlobe(self,R,Rp,v,t):
         '''
-        Compute volume of the lobe given R, Rp, t
+        Compute volume of the lobe given R, Rp, v, t
         '''
         try:
             N=self.ndict[(R,Rp)]
@@ -223,10 +277,18 @@ class Evolve_RG(object):
         else:
             time=t
 
+        r=((self.Gamma_j-1)*self.xi*self.Q*time/
+                                ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
+                                 N*self.kt - (self.Gamma_s - 1)*N*m0*(v**2.0)/2.0))
+
+        #if r>1: r=1
+        return self.vtot(R,Rp)*r
+        '''
         if self.Gamma==(4.0/3.0):
-            return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+3*N*self.kt))
+            return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+N*(3*self.kt-m0*v**2.0)))
         else:
-            return self.vtot(R,Rp)*(self.xi*self.Q*time/(self.Q*time+3*N*self.kt/2.0))
+            raise NotImplementedError('gamma needs to be 4/3')
+        '''
 
     def _solve_rel(self,X):
     # solve the equation Gamma v^2 = X for v
@@ -236,20 +298,21 @@ class Evolve_RG(object):
         return self._solve_rel((pint-pext)/dext)
 
     def _rhp(self,p1,p0):
-        return np.sqrt((1.0/(2.0*self.Gamma))*((self.Gamma+1)*(p1/p0)-(1-self.Gamma)))
+        return np.sqrt((1.0/(2.0*self.Gamma_s))*((self.Gamma_s+1)*(p1/p0)-(1-self.Gamma_s)))
     
     def _solve_mach(self,p1,p0):
         if p1<p0:
-            print 'Warning: internal pressure has fallen below external pressure'
+            # print 'Warning: internal pressure has fallen below external pressure'
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
 
-    def _dL_dt(self,L,t,vl=None):
+    def dL_dt_vest(self,L,t,v_est):
         R=L[0]
         Rp=L[1]
-        if vl is None:
-            vl=self.vlobe(R,Rp,t)
+
+        vl=self.vlobe(R,Rp,v_est,t)
+        self.tempvl=vl
         if t<=self.tstop:
             internal=self.prfactor*(self.xi*self.Q*t)/vl
             ram=self.epsilon*(self.Q*R)/(2*self.qfactor*vl)
@@ -262,9 +325,90 @@ class Evolve_RG(object):
             ])
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
-        if self.verbose:
-            print 'Called:',t,R,Rp,vl,result/self.cs
+
         return result
+
+    def iter_dLdt(self,L,t,verbose=False):
+        '''
+        Attempt to find a self-consistent velocity solution
+        dLdt takes an estimated speed for ke and returns the velocity vector
+        iterative solving works by bisection, i.e. we are trying to solve for the difference between the input and output velocity being zero
+        '''
+        v0=np.array([self.cs,self.cs])
+        r0=self.dL_dt_vest(L,t,vcomb(v0,L))
+        v2=r0
+        r2=self.dL_dt_vest(L,t,vcomb(v2,L))
+        v1=(v0+v2)/2.0
+        r1=self.dL_dt_vest(L,t,vcomb(v1,L))
+        d0=vcomb(v0,L)-vcomb(r0,L)
+        d1=vcomb(v1,L)-vcomb(r1,L)
+        d2=vcomb(v2,L)-vcomb(r2,L)
+
+        iter=0
+        while iter<100:
+            #print iter,v1,r1,d1
+            if np.sign(d1)==np.sign(d0):
+                # new midpoint between 1 and 2
+                v0=v1
+                r0=r1
+                d0=d1
+            else:
+                v2=v1
+                r2=r1
+                d2=d1
+            v1=(v0+v2)/2.0
+            v1=np.where(v1<self.cs,self.cs,v1)
+            #print v0,v1,v2
+            d1_old=d1
+            r1=self.dL_dt_vest(L,t,vcomb(v1,L))
+            d1=vcomb(v1,L)-vcomb(r1,L)
+            if iter>10 and (np.sum(np.abs(d1_old-d1))/np.sum(v1))<1e-8:
+                break
+
+            iter+=1
+        print 'dLdt: returning:',t,L,r1,iter
+        return r1
+
+    
+    def iter_dLdt_old(self,L,t,verbose=False):
+        '''
+        Attempt to find a self-consistent velocity solution
+        dLdt takes an estimated speed for ke and returns the velocity vector
+        iterative solving works by bisection, i.e. we are trying to minimize
+        the difference between the input and the output velocity
+        '''
+        v0=np.array([0,0])
+        r0=self.dL_dt_vest(L,t,vcomb(v0))
+        v2=r0
+        r2=self.dL_dt_vest(L,t,vcomb(v2))
+        v1=(v0+v2)/2.0
+        r1=self.dL_dt_vest(L,t,vcomb(v1))
+        d0=abs(vcomb(v0)-vcomb(r0))
+        d1=abs(vcomb(v1)-vcomb(r1))
+        d2=abs(vcomb(v2)-vcomb(r2))
+
+        iter=0
+        while iter<100:
+            if verbose: print iter,v1,r1,d1
+            r1_old=r1
+            if d0>d2:
+                # new midpoint between 1 and 2
+                v0=v1
+                r0=r1
+                d0=d1
+            else:
+                v2=v1
+                r2=r1
+                d2=d1
+            v1=(v0+v2)/2.0
+            r1=self.dL_dt_vest(L,t,vcomb(v1))
+            if (np.sum(np.abs(r1_old-r1))/np.sum(r1))<1e-6:
+                break
+            d1=abs(vcomb(v1)-vcomb(r1))
+            
+            iter+=1
+        print 'dLdt: returning:',t,L,r1,iter
+        return r1
 
     def solve(self,Q,tv,tstop=None):
         '''
@@ -291,7 +435,7 @@ class Evolve_RG(object):
         if self.verbose:
             print 'tstop is',self.tstop
         self.ndict={}
-        self.results=odeint(self._dL_dt,[c*tv[0],c*tv[0]],tv)
+        self.results=odeint(self.iter_dLdt,[c*tv[0],c*tv[0]],tv)
         self.R=self.results[:,0]
         self.Rp=self.results[:,1]
         # now redo to find speeds etc
@@ -301,12 +445,12 @@ class Evolve_RG(object):
         self.vl=[]
         self.vt=[]
         for i in range(len(self.R)):
-            vl=self.vlobe(self.R[i],self.Rp[i],tv[i])
             vt=self.vtot(self.R[i],self.Rp[i])
-            self.vl.append(vl)
             self.vt.append(vt)
+            speeds=self.iter_dLdt([self.R[i],self.Rp[i]],tv[i])
+            vl=self.tempvl # stored here by dLdt
+            self.vl.append(vl)
             self.rlobe.append(vl/vt)
-            speeds=self._dL_dt([self.R[i],self.Rp[i]],tv[i],vl)
             self.m1.append(speeds[0]/self.cs)
             self.mp1.append(speeds[1]/self.cs)
         self.vl=np.array(self.vl)
@@ -314,6 +458,35 @@ class Evolve_RG(object):
         self.rlobe=np.array(self.rlobe)
         self.m1=np.array(self.m1)
         self.mp1=np.array(self.mp1)
+
+    def find_shellt(self):
+        '''Find the shell temperature and other useful physical parameters as
+        a function of time, assuming solve has been run. Values before
+        and around the transition from relativistic to
+        non-relativistic values should not be relied on.
+        Updated attributes:
+        ns -- an array matching tv of the total particle number N in the shell
+        es -- an array matching tv of the total thermal energy in the shell (W)
+        ts -- an array matching tv of the temperature in the shell (K)
+
+        '''
+        ns=[]
+        es=[]
+        ts=[]
+        for i in range(len(self.R)):
+            # compute the thermal energy in the shocked shell
+            times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+            N=self.ndict[(self.R[i],self.Rp[i])]
+            speed=self.cs*np.array([self.m1[i],self.mp1[i]])
+            E = ( (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt -
+                  0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0)
+            T = (self.Gamma_s-1)*(E/N)/boltzmann
+            ns.append(N)
+            es.append(E)
+            ts.append(T)
+        self.ns=np.array(ns)
+        self.es=np.array(es)
+        self.ts=np.array(ts)
             
     def _init_synch(self):
         ''' Set up the synchrotron parameters '''
@@ -327,6 +500,74 @@ class Evolve_RG(object):
         else:
             self.I=(1.0/(2.0-q))*(self.emax**(2.0-q)-self.emin**(2.0-q))
 
+        if q==3.0:
+            self.Iloss=np.log(self.emax/self.emin)
+        else:
+            self.Iloss=(1.0/(3.0-q))*(self.emax**(3.0-q)-self.emin**(3.0-q))
+
+    def finds_loss(self):
+        '''
+        Compute the total synchrotron loss rate, neglecting the effect of
+        losses that have already happened
+        Updated attributes:
+        loss -- The synchrotron power (W)
+
+        '''
+        
+        if self.Gamma_j!=4.0/3.0:
+            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
+
+        self._init_synch()
+        
+        try:
+            B=self.B
+        except AttributeError:
+            self.findb()
+            B=self.B
+
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+
+        self.loss=self.Iloss*(self.xi*self.Q*times)*(B**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
+
+    def findic_loss(self,z=None):
+        '''
+        Compute the total IC loss rate, neglecting the effect of
+        losses that have already happened
+        Updated attributes:
+        ic_loss -- The IC power (W)
+
+        '''
+
+        if self.Gamma_j!=4.0/3.0:
+            raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
+
+        self._init_synch()
+
+        if z is None:
+            z=self.z
+
+        bcmb=findbcmb(z)
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
+
+        self.ic_loss=self.Iloss*(self.xi*self.Q*times)*(bcmb**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
+
+    def findbs_loss(self):
+        '''
+        Compute the total bremsstrahlung loss rate, neglecting the effect of
+        losses that have already happened
+        Updated attributes:
+        bs_loss -- The thermal bremsstrahlung power (W)
+
+        '''
+        try:
+            self.ts
+        except AttributeError:
+            self.find_shellt()
+        vs=self.vt-self.vl
+        P=1.2*1.44e-40*(1.18/2.18**2.0)*self.ns**2.0*self.ts**(0.5)/vs
+        self.bs_loss=P
+
+            
     def findsynch(self,nu):
         '''
         Compute synchrotron emission.
@@ -336,7 +577,7 @@ class Evolve_RG(object):
         nu_ref -- the reference frequency
         synch  -- the uncorrected synchrotron luminosity (W/Hz)
         '''
-        if self.Gamma!=4.0/3.0:
+        if self.Gamma_j!=4.0/3.0:
             raise NotImplementedError('Jet fluid adiabatic index is not 4/3: findsynch assumes a relativistic fluid')
         self.nu_ref=nu
         self._init_synch()
@@ -394,6 +635,49 @@ class Evolve_RG(object):
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta+self.kappa)))
         self.B=np.array(B)
 
+    def findlosscorrection(self,z=None,do_adiabatic=None,timerange=None):
+        '''
+        Find corrections to the simple synchrotron loss formula.
+        Parameters:
+        z            -- the redshift. If undefined defaults to the value already chosen
+        do_adiabatic -- boolean specifying whether adiabatic corrections should be done
+        timerange    -- a list of the _indices_ of the time values to find the correction for. If unset, do all of them.
+        Updated attributes:
+        losscorrs    -- the correction factors per frequency (times, freqs)
+        '''
+
+        try:
+            self.loss
+        except AttributeError:
+            print 'Warning: finds_loss not previously run, running it now'
+            self.finds_loss()
+
+        if z is None:
+            z=self.z
+        else:
+            self.z=z
+            print 'findcorrection over-riding previously set z to %f' % z
+
+        # adapted from agecorrection.py code
+        if timerange is None:
+            timerange=range(len(self.tv))
+        synch.setspectrum(self.gmin,self.gmax,self.q)
+        if do_adiabatic is not None:
+            print 'Over-riding do_adiabatic setting to',do_adiabatic
+            self.do_adiabatic=do_adiabatic
+
+        bcmb=findbcmb(z)
+        if self.verbose:
+            print 'CMB energy density in B-field terms is %g T' % bcmb
+
+        corrs=np.ones_like(self.tv)*np.nan
+        if self.verbose:
+            print 'Finding correction factors:'
+        for i in timerange:
+            if self.verbose: print self.tv[i]
+            corrs[i]=(loss_findcorrection(i,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
+        self.losscorrs=corrs
+
     def findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None):
         '''
         Find corrections to the simple synchrotron formula.
@@ -428,13 +712,8 @@ class Evolve_RG(object):
             print 'Over-riding do_adiabatic setting to',do_adiabatic
             self.do_adiabatic=do_adiabatic
         self.freqs=freqs
-        redshift=z
-        cmbtemp=2.73
-        boltzmann=1.380658e-23
-        planck=6.6260755e-34
-        v_c=c
 
-        bcmb=np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+        bcmb=findbcmb(z)
         if self.verbose:
             print 'CMB energy density in B-field terms is %g T' % bcmb
 
@@ -483,13 +762,7 @@ class Evolve_RG(object):
             print 'Over-riding do_adiabatic setting to',do_adiabatic
             self.do_adiabatic=do_adiabatic
         self.ic_freqs=freqs
-        redshift=z
-        cmbtemp=2.73
-        boltzmann=1.380658e-23
-        planck=6.6260755e-34
-        v_c=c
-
-        bcmb=np.sqrt(8.0*np.pi**5.0*((1.0+redshift)*cmbtemp*boltzmann)**4.0/(15*planck**3.0*v_c**3.0)*(2.0*mu0))
+        bcmb=findbcmb(z)
         if self.verbose:
             print 'CMB energy density in B-field terms is %g T' % bcmb
 
@@ -501,7 +774,7 @@ class Evolve_RG(object):
             corrs[i]=(ic_agecorr_findcorrection(i,freqs,z,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.ic_corrs=corrs
         cs=np.zeros_like(corrs)
-        for i,f in enumerate(self.freqs):
+        for i,f in enumerate(self.ic_freqs):
             cs[:,i]=(self.ic*self.ic_corrs[:,i]*(f/self.nu_ic_ref)**-self.alpha)
         self.corr_ic=cs
            
@@ -525,7 +798,8 @@ class Evolve_RG(object):
         kappa        -- Ratio between non-radiating and electron energy density
         epsilon      -- Geometrical factor for momentum flux
         qfactor      -- Energy-momentum conversion factor (m/s)
-        Gamma        -- Adiabatic index of the lobes. Should be 4.0/3.0 or 5.0/3.0
+        Gamma_j        -- Adiabatic index of the lobes and jets. Defaults to 4/3
+        Gamma_s        -- Adiabatic index of the shocks. Defaults to 5/3
         do_adiabatic -- Boolean controlling whether adiabatic corrections are applied
         gmin         -- Minimum Lorentz factor of the lobe electrons
         gmax         -- Maximum Lorentz factor of the lobe electrons
@@ -545,9 +819,10 @@ class Evolve_RG(object):
         keywords = (('xi','Energy fraction in lobes',0.5),
                     ('zeta', 'Magnetic field/electron energy ratio', 0.1),
                     ('kappa', 'Non-radiating particle/electron energy ratio', 0),
-                    ('epsilon', 'Geometrical factor for momentum flux', 2),
+                    ('epsilon', 'Geometrical factor for momentum flux', 4),
                     ('qfactor', 'Energy/momentum conversion factor', c),
-                    ('Gamma', 'Adiabatic index of lobe fluid', 4.0/3.0),
+                    ('Gamma_j', 'Adiabatic index of jet/lobe fluid', 4.0/3.0),
+                    ('Gamma_s', 'Adiabatic index of shocked material', 5.0/3.0),
                     ('do_adiabatic', 'Perform the adiabatic corrections in synchrotron and inverse-Compton calculations', True),
                     ('gmin', 'Minimum Lorentz factor of injected electrons', 10),
                     ('gmax', 'Maximum Lorentz factor of injected electrons', 1e6),
@@ -579,7 +854,6 @@ class Evolve_RG(object):
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
 
         self._setfunctions() # raises exception if env_type is not known.
-        self.cs=np.sqrt(5.0*self.kt/(3.0*m0))
 
         for k,desc,default in keywords:
             try:
@@ -589,12 +863,8 @@ class Evolve_RG(object):
             self.__dict__[k]=value
             print '%s (%s) is' % (k,desc),value
 
-        if self.Gamma==(4.0/3.0):
-            self.prfactor=1.0/3.0
-        elif self.Gamma==(5.0/3.0):
-            self.prfactor=2.0/3.0
-        else:
-            raise RuntimeError('Adiabatic index is not understood')
+        self.cs=np.sqrt(self.Gamma_s*self.kt/m0)
+        self.prfactor=self.Gamma_j-1.0
             
     def __getstate__(self):
         # When being pickled, we need to remove the references to

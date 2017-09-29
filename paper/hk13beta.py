@@ -23,7 +23,7 @@ for beta in [0.55,0.75,0.90]:
             envs.append(Evolve_RG.load(outname))
         else:
             rc*=2.1*kpc
-            envs.append(Evolve_RG('beta',kT=2e3*eV,p0=5.76e-12,rc=rc,beta=beta,qfactor=0.5*25*730e3,Gamma=(5.0/3.0)))
+            envs.append(Evolve_RG('beta',kT=2e3*eV,p0=5.76e-12,rc=rc,beta=beta,qfactor=0.5*25*730e3,Gamma_j=(5.0/3.0)))
             envs[-1].solve(Q,tv)
             envs[-1].save(outname)
 
