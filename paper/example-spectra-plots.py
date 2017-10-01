@@ -37,4 +37,5 @@ plt.clf()
 plt.plot(env.R/kpc,env.B)
 plt.xscale('log')
 plt.yscale('log')
-plt.show()
+plt.savefig('Bvst.pdf')
+

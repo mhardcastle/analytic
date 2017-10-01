@@ -83,3 +83,8 @@ pdfcrop plot_ql150_lowz.pdf
 
 python $AP/plot_l150m500_lowz.py
 pdfcrop plot_150m500.pdf
+
+# Fig age-size
+
+python $AP/plot_agesize.py
+pdfcrop agesize.pdf
