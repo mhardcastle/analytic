@@ -25,7 +25,7 @@ plt.legend(loc=0,fontsize='small')
 plt.xlabel('Time (Myr)')
 plt.ylabel('Radio luminosity (W Hz$^{-1}$)')
 plt.xlim((1,300))
-plt.ylim((1e25,2e29))
+plt.ylim((1e25,3e29))
 plt.subplot(1,2,2)
 for i in range(1,nfreq):
     plt.plot(tv/Myr,-np.log(lums[:,i]/lums[:,i-1])/np.log(env.freqs[i]/env.freqs[i-1]),label='$\\alpha_{%.0f}^{%.0f}$' % (env.freqs[i]/1e6,env.freqs[i-1]/1e6))
