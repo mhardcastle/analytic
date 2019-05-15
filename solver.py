@@ -279,7 +279,7 @@ class Evolve_RG(object):
 
         r=((self.Gamma_j-1)*self.xi*self.Q*time/
            ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
-            N*self.kt - (self.Gamma_s - 1)*N*m0*(v**2.0)/2.0))
+            N*self.kt - (self.Gamma_s - 1)*N*m0*((v-self.cs)**2.0)/2.0))
         if r<0: r=0
         #if r>1: r=1
         return self.vtot(R,Rp)*r
@@ -298,6 +298,8 @@ class Evolve_RG(object):
         if p1<p0:
             if do_raise:
                 raise RuntimeError('Internal pressure has fallen below external pressure')
+            else:
+                print 'Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0)
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
@@ -318,7 +320,7 @@ class Evolve_RG(object):
             print 'dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp)
         try:
             result=np.array([
-                self._solve_mach(ram+internal,self.pr(R),do_raise=True),
+                self._solve_mach(ram+internal,self.pr(R),do_raise=False),
                 self._solve_mach(internal,self.pr(Rp))
                 ])
         except RuntimeError:
@@ -482,13 +484,13 @@ class Evolve_RG(object):
         for i in range(len(self.R)):
             # compute the thermal energy in the shocked shell
             N=self.ndict[(self.R[i],self.Rp[i])]
-            speed=self.cs*np.array([self.m1[i],self.mp1[i]])
+            # hack for the KE to not count shells expanding at sound speed
+            speed=self.cs*(np.array([self.m1[i],self.mp1[i]])-1)
             E = (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
             T = (self.Gamma_s-1)*(E/N)/boltzmann
             ns.append(N)
             es.append(E)
             ts.append(T)
-            speeds.append(speed)
         self.ns=np.array(ns)
         self.es=np.array(es)
         self.ts=np.array(ts)
