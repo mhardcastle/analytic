@@ -277,10 +277,13 @@ class Evolve_RG(object):
         else:
             time=t
 
+        # change in pressure_issue
         r=((self.Gamma_j-1)*self.xi*self.Q*time/
            ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
             N*self.kt - (self.Gamma_s - 1)*N*m0*((v-self.cs)**2.0)/2.0))
-        if r<0: r=0
+        #if r<0:
+        #    print 'Warning: vlobe is 0 at t=%g!' % t
+        #    r=1e-3 # avoid nans
         #if r>1: r=1
         return self.vtot(R,Rp)*r
 
@@ -299,7 +302,8 @@ class Evolve_RG(object):
             if do_raise:
                 raise RuntimeError('Internal pressure has fallen below external pressure')
             else:
-                print 'Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0)
+                if self.verbose:
+                    print 'Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0)
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
@@ -331,7 +335,7 @@ class Evolve_RG(object):
 
         return result
 
-    def iter_dLdt(self,L,t):
+    def iter_dLdt(self,L,t,iterlimit=100):
         '''
         Attempt to find a self-consistent velocity solution
         dLdt takes an estimated speed for ke and returns the velocity vector
@@ -348,9 +352,9 @@ class Evolve_RG(object):
         d2=vcomb(v2,L)-vcomb(r2,L)
 
         iter=0
-        while iter<100:
-            if self.verbose:
-                print iter,v1,r1,d1
+        while iter<iterlimit:
+            #if self.verbose:
+            #    print iter,v1,r1,d1
             if np.sign(d1)==np.sign(d0):
                 # new midpoint between 1 and 2
                 v0=v1
@@ -370,12 +374,16 @@ class Evolve_RG(object):
                 break
 
             iter+=1
+        if iter==iterlimit:
+            print 'dLdt: ',t,L,r1,iter
+            raise RuntimeError('Convergence failed')
+
         if self.verbose:
             print 'dLdt: returning:',t,L,r1,iter
         return r1
 
     
-    def iter_dLdt_old(self,L,t,verbose=False):
+    def iter_dLdt_old(self,L,t,verbose=False,iterlimit=100):
         '''
         Attempt to find a self-consistent velocity solution
         dLdt takes an estimated speed for ke and returns the velocity vector
@@ -393,7 +401,7 @@ class Evolve_RG(object):
         d2=abs(vcomb(v2)-vcomb(r2))
 
         iter=0
-        while iter<100:
+        while iter<iterlimit:
             if verbose: print iter,v1,r1,d1
             r1_old=r1
             if d0>d2:
@@ -412,6 +420,9 @@ class Evolve_RG(object):
             d1=abs(vcomb(v1)-vcomb(r1))
             
             iter+=1
+        if iter==iterlimit:
+            print 'dLdt: ',t,L,r1,iter
+            raise RuntimeError('Convergence failed')
         if verbose:
             print 'dLdt: returning:',t,L,r1,iter
         return r1
