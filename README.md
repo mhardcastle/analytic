@@ -1,14 +1,19 @@
 # analytic
 
-This code runs the analytic models described by Hardcastle (2017 -- to
-be submitted). Code used to generate the plots from the paper is
-provided and can be used for some additional examples.
+This code runs the analytic models described by Hardcastle (2018:
+https://ui.adsabs.harvard.edu/abs/2018MNRAS.475.2768H/abstract). Code
+used to generate the plots from the paper is provided and can be used
+for some additional examples.
 
 ## Setup instructions
 
 The code relies on a synchrotron library, pysynch. Clone pysynch from
 https://github.com/mhardcastle/pysynch.git
 and do `python setup.py install`.
+
+The current pysynch is Python 3 only, so the model code is dependent
+on Python 3 as well. Python 2 releases of both codes are available but
+not maintained.
 
 Once pysynch is installed the `analytic` code can be used simply by
 making sure that the user's `PYTHONPATH` points to this directory. It
