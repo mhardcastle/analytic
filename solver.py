@@ -277,18 +277,15 @@ class Evolve_RG(object):
         else:
             time=t
 
+        # change in pressure_issue
         r=((self.Gamma_j-1)*self.xi*self.Q*time/
-                                ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
-                                 N*self.kt - (self.Gamma_s - 1)*N*m0*(v**2.0)/2.0))
-
+           ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
+            N*self.kt - (self.Gamma_s - 1)*N*m0*((v-self.cs)**2.0)/2.0))
+        #if r<0:
+        #    print 'Warning: vlobe is 0 at t=%g!' % t
+        #    r=1e-3 # avoid nans
         #if r>1: r=1
         return self.vtot(R,Rp)*r
-        '''
-        if self.Gamma==(4.0/3.0):
-            return self.vtot(R,Rp)*(self.xi*self.Q*time/((2.0-self.xi)*self.Q*time+N*(3*self.kt-m0*v**2.0)))
-        else:
-            raise NotImplementedError('gamma needs to be 4/3')
-        '''
 
     def _solve_rel(self,X):
     # solve the equation Gamma v^2 = X for v
@@ -300,9 +297,13 @@ class Evolve_RG(object):
     def _rhp(self,p1,p0):
         return np.sqrt((1.0/(2.0*self.Gamma_s))*((self.Gamma_s+1)*(p1/p0)-(1-self.Gamma_s)))
     
-    def _solve_mach(self,p1,p0):
+    def _solve_mach(self,p1,p0,do_raise=False):
         if p1<p0:
-            # print 'Warning: internal pressure has fallen below external pressure'
+            if do_raise:
+                raise RuntimeError('Internal pressure has fallen below external pressure')
+            else:
+                if self.verbose:
+                    print 'Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0)
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
@@ -319,16 +320,22 @@ class Evolve_RG(object):
         else:
             internal=self.prfactor*(self.xi*self.Q*self.tstop)/vl
             ram=0
-        result=np.array([
-            self._solve_mach(ram+internal,self.pr(R)),
-            self._solve_mach(internal,self.pr(Rp))
-            ])
+        if self.verbose:
+            print 'dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp)
+        try:
+            result=np.array([
+                self._solve_mach(ram+internal,self.pr(R),do_raise=False),
+                self._solve_mach(internal,self.pr(Rp))
+                ])
+        except RuntimeError:
+            print R,Rp,t,v_est,vl,internal,ram,self.pr(R),self.pr(Rp)
+            raise
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
 
         return result
 
-    def iter_dLdt(self,L,t,verbose=False):
+    def iter_dLdt(self,L,t,iterlimit=100):
         '''
         Attempt to find a self-consistent velocity solution
         dLdt takes an estimated speed for ke and returns the velocity vector
@@ -345,8 +352,9 @@ class Evolve_RG(object):
         d2=vcomb(v2,L)-vcomb(r2,L)
 
         iter=0
-        while iter<100:
-            #print iter,v1,r1,d1
+        while iter<iterlimit:
+            #if self.verbose:
+            #    print iter,v1,r1,d1
             if np.sign(d1)==np.sign(d0):
                 # new midpoint between 1 and 2
                 v0=v1
@@ -366,11 +374,16 @@ class Evolve_RG(object):
                 break
 
             iter+=1
-        print 'dLdt: returning:',t,L,r1,iter
+        if iter==iterlimit:
+            print 'dLdt: ',t,L,r1,iter
+            raise RuntimeError('Convergence failed')
+
+        if self.verbose:
+            print 'dLdt: returning:',t,L,r1,iter
         return r1
 
     
-    def iter_dLdt_old(self,L,t,verbose=False):
+    def iter_dLdt_old(self,L,t,verbose=False,iterlimit=100):
         '''
         Attempt to find a self-consistent velocity solution
         dLdt takes an estimated speed for ke and returns the velocity vector
@@ -388,7 +401,7 @@ class Evolve_RG(object):
         d2=abs(vcomb(v2)-vcomb(r2))
 
         iter=0
-        while iter<100:
+        while iter<iterlimit:
             if verbose: print iter,v1,r1,d1
             r1_old=r1
             if d0>d2:
@@ -407,7 +420,11 @@ class Evolve_RG(object):
             d1=abs(vcomb(v1)-vcomb(r1))
             
             iter+=1
-        print 'dLdt: returning:',t,L,r1,iter
+        if iter==iterlimit:
+            print 'dLdt: ',t,L,r1,iter
+            raise RuntimeError('Convergence failed')
+        if verbose:
+            print 'dLdt: returning:',t,L,r1,iter
         return r1
 
     def solve(self,Q,tv,tstop=None):
@@ -473,13 +490,14 @@ class Evolve_RG(object):
         ns=[]
         es=[]
         ts=[]
+        speeds=[]
+        times=np.where(self.tv<self.tstop,self.tv,self.tstop)
         for i in range(len(self.R)):
             # compute the thermal energy in the shocked shell
-            times=np.where(self.tv<self.tstop,self.tv,self.tstop)
             N=self.ndict[(self.R[i],self.Rp[i])]
-            speed=self.cs*np.array([self.m1[i],self.mp1[i]])
-            E = ( (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt -
-                  0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0)
+            # hack for the KE to not count shells expanding at sound speed
+            speed=self.cs*(np.array([self.m1[i],self.mp1[i]])-1)
+            E = (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
             T = (self.Gamma_s-1)*(E/N)/boltzmann
             ns.append(N)
             es.append(E)

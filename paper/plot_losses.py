@@ -9,6 +9,8 @@ rc('text', usetex=True)
 
 env=Evolve_RG.load('example-universal.pickle')
 
+env.z=6
+
 env.finds_loss()
 env.findic_loss()
 env.findbs_loss()
@@ -28,5 +30,5 @@ plt.xlim((1e-4,300))
 plt.ylim((1e31,3e39))
 plt.ylabel('Power (W)')
 plt.xlabel('Time (Myr)')
-plt.savefig('plot_losses.pdf')
+plt.savefig('plot_losses_z6.pdf')
 #plt.show()
