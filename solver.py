@@ -1,3 +1,4 @@
+from __future__ import print_function
 from scipy.integrate import odeint,romberg
 from scipy.special import kn
 import numpy as np
@@ -44,7 +45,7 @@ def loss_findcorrection(now,time,bm,bcmb,intervals=25,volumes=None,verbose=False
     
     bsm=bm**2.0
     endtime=time[now]
-    if verbose: print 'endtime is',endtime,'Myr'
+    if verbose: print('endtime is',endtime,'Myr')
 
     loss=0
     ual=0
@@ -53,8 +54,8 @@ def loss_findcorrection(now,time,bm,bcmb,intervals=25,volumes=None,verbose=False
         starttime=endtime*float(i)/float(intervals)
         if tstop is not None and starttime>tstop:
             starttime=tstop
-        if verbose: print 'interval',i
-        if verbose: print 'starttime is',starttime,'Myr'
+        if verbose: print('interval',i)
+        if verbose: print('starttime is',starttime,'Myr')
 
         if do_adiabatic:
             vstart=np.interp(starttime,time,volumes)
@@ -63,7 +64,7 @@ def loss_findcorrection(now,time,bm,bcmb,intervals=25,volumes=None,verbose=False
             b=np.sqrt(bm[now]**2.0+bcmb**2.0)
         else:
             b=intb(starttime,endtime,time,bsm,bcmb)
-        if verbose: print 'effective ageing field is',b
+        if verbose: print('effective ageing field is',b)
         age=(endtime-starttime)*86400.0*365.0*1.0e6
         if do_adiabatic:
             age*=(volumes[now]/vstart)**(1.0/3.0)
@@ -104,7 +105,7 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
     
     bsm=bm**2.0
     endtime=time[now]
-    if verbose: print 'endtime is',endtime,'Myr'
+    if verbose: print('endtime is',endtime,'Myr')
 
     emiss=np.zeros_like(freq)
     uae=np.zeros_like(freq)
@@ -113,8 +114,8 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
         starttime=endtime*float(i)/float(intervals)
         if tstop is not None and starttime>tstop:
             starttime=tstop
-        if verbose: print 'interval',i
-        if verbose: print 'starttime is',starttime,'Myr'
+        if verbose: print('interval',i)
+        if verbose: print('starttime is',starttime,'Myr')
 
         if do_adiabatic:
             vstart=np.interp(starttime,time,volumes)
@@ -123,7 +124,7 @@ def agecorr_findcorrection(now,freq,time,bm,bcmb,intervals=25,volumes=None,verbo
             b=np.sqrt(bm[now]**2.0+bcmb**2.0)
         else:
             b=intb(starttime,endtime,time,bsm,bcmb)
-        if verbose: print 'effective ageing field is',b
+        if verbose: print('effective ageing field is',b)
         for j,f in enumerate(freq):
             if f is None:
                 emiss[j]=1
@@ -148,7 +149,7 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
 
     bsm=bm**2.0
     endtime=time[now]
-    if verbose: print 'endtime is',endtime,'Myr'
+    if verbose: print('endtime is',endtime,'Myr')
 
     emiss=np.zeros_like(freq)
     uae=np.zeros_like(freq)
@@ -162,8 +163,8 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
         starttime=endtime*float(i)/float(intervals)
         if tstop is not None and starttime>tstop:
             starttime=tstop
-        if verbose: print 'interval',i
-        if verbose: print 'starttime is',starttime,'Myr'
+        if verbose: print('interval',i)
+        if verbose: print('starttime is',starttime,'Myr')
 
         if do_adiabatic:
             vstart=np.interp(starttime,time,volumes)
@@ -172,7 +173,7 @@ def ic_agecorr_findcorrection(now,freq,z,time,bm,bcmb,intervals=40,volumes=None,
             b=np.sqrt(bm[now]**2.0+bcmb**2.0)
         else:
             b=intb(starttime,endtime,time,bsm,bcmb)
-        if verbose: print 'effective ageing field is',b
+        if verbose: print('effective ageing field is',b)
         for j,f in enumerate(freq):
             if f is None:
                 emiss[j]=1
@@ -245,7 +246,7 @@ class Evolve_RG(object):
     def _outer_int(self,z,R,Rp):
         limit=Rp*np.sqrt((1.0-z**2.0/R**2.0))
         if np.isnan(limit):
-            print 'limit is nan:',z,R,Rp
+            print('limit is nan:',z,R,Rp)
             raise RuntimeError('Integration called with impossible bounds')
         return romberg(self._inner_int,0,limit,args=(z,R,Rp),divmax=20)
 
@@ -298,12 +299,14 @@ class Evolve_RG(object):
         return np.sqrt((1.0/(2.0*self.Gamma_s))*((self.Gamma_s+1)*(p1/p0)-(1-self.Gamma_s)))
     
     def _solve_mach(self,p1,p0,do_raise=False):
+        # Solve for growth of shocked shell unless pressure is too
+        # low. If it is, allow expansion at sound speed to stabilize
+        # situation.
         if p1<p0:
             if do_raise:
                 raise RuntimeError('Internal pressure has fallen below external pressure')
             else:
-                if self.verbose:
-                    print 'Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0)
+                if self.verbose: print('Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0))
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
@@ -321,14 +324,14 @@ class Evolve_RG(object):
             internal=self.prfactor*(self.xi*self.Q*self.tstop)/vl
             ram=0
         if self.verbose:
-            print 'dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp)
+            print('dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp))
         try:
             result=np.array([
                 self._solve_mach(ram+internal,self.pr(R),do_raise=False),
                 self._solve_mach(internal,self.pr(Rp))
                 ])
         except RuntimeError:
-            print R,Rp,t,v_est,vl,internal,ram,self.pr(R),self.pr(Rp)
+            print(R,Rp,t,v_est,vl,internal,ram,self.pr(R),self.pr(Rp))
             raise
         result=np.where(result>c,[c,c],result)
         result=np.where(np.isnan(result),[0,0],result)
@@ -375,11 +378,11 @@ class Evolve_RG(object):
 
             iter+=1
         if iter==iterlimit:
-            print 'dLdt: ',t,L,r1,iter
+            print('dLdt: ',t,L,r1,iter)
             raise RuntimeError('Convergence failed')
 
         if self.verbose:
-            print 'dLdt: returning:',t,L,r1,iter
+            print('dLdt: returning:',t,L,r1,iter)
         return r1
 
     
@@ -402,7 +405,7 @@ class Evolve_RG(object):
 
         iter=0
         while iter<iterlimit:
-            if verbose: print iter,v1,r1,d1
+            if verbose: print(iter,v1,r1,d1)
             r1_old=r1
             if d0>d2:
                 # new midpoint between 1 and 2
@@ -421,10 +424,10 @@ class Evolve_RG(object):
             
             iter+=1
         if iter==iterlimit:
-            print 'dLdt: ',t,L,r1,iter
+            print('dLdt: ',t,L,r1,iter)
             raise RuntimeError('Convergence failed')
         if verbose:
-            print 'dLdt: returning:',t,L,r1,iter
+            print('dLdt: returning:',t,L,r1,iter)
         return r1
 
     def solve(self,Q,tv,tstop=None):
@@ -450,7 +453,7 @@ class Evolve_RG(object):
         else:
             self.tstop=tstop
         if self.verbose:
-            print 'tstop is',self.tstop
+            print('tstop is',self.tstop)
         self.ndict={}
         self.results=odeint(self.iter_dLdt,[c*tv[0],c*tv[0]],tv)
         self.R=self.results[:,0]
@@ -625,7 +628,7 @@ class Evolve_RG(object):
             z=self.z
         else:
             self.z=z
-            print 'findic over-riding previously set z to %f' % z
+            print('findic over-riding previously set z to %f' % z)
         self.nu_ic_ref=nu
         self._init_synch()
         
@@ -667,32 +670,32 @@ class Evolve_RG(object):
         try:
             self.loss
         except AttributeError:
-            print 'Warning: finds_loss not previously run, running it now'
+            print('Warning: finds_loss not previously run, running it now')
             self.finds_loss()
 
         if z is None:
             z=self.z
         else:
             self.z=z
-            print 'findcorrection over-riding previously set z to %f' % z
+            print('findcorrection over-riding previously set z to %f' % z)
 
         # adapted from agecorrection.py code
         if timerange is None:
             timerange=range(len(self.tv))
         synch.setspectrum(self.gmin,self.gmax,self.q)
         if do_adiabatic is not None:
-            print 'Over-riding do_adiabatic setting to',do_adiabatic
+            print('Over-riding do_adiabatic setting to',do_adiabatic)
             self.do_adiabatic=do_adiabatic
 
         bcmb=findbcmb(z)
         if self.verbose:
-            print 'CMB energy density in B-field terms is %g T' % bcmb
+            print('CMB energy density in B-field terms is %g T' % bcmb)
 
         corrs=np.ones_like(self.tv)*np.nan
         if self.verbose:
-            print 'Finding correction factors:'
+            print('Finding correction factors:')
         for i in timerange:
-            if self.verbose: print self.tv[i]
+            if self.verbose: print(self.tv[i])
             corrs[i]=(loss_findcorrection(i,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.losscorrs=corrs
 
@@ -713,33 +716,33 @@ class Evolve_RG(object):
         try:
             self.synch
         except AttributeError:
-            print 'Warning: findsynch not previously run, running it now'
+            print('Warning: findsynch not previously run, running it now')
             self.findsynch(nu=freqs[0])
 
         if z is None:
             z=self.z
         else:
             self.z=z
-            print 'findcorrection over-riding previously set z to %f' % z
+            print('findcorrection over-riding previously set z to %f' % z)
 
         # adapted from agecorrection.py code
         if timerange is None:
             timerange=range(len(self.tv))
         synch.setspectrum(self.gmin,self.gmax,self.q)
         if do_adiabatic is not None:
-            print 'Over-riding do_adiabatic setting to',do_adiabatic
+            print('Over-riding do_adiabatic setting to',do_adiabatic)
             self.do_adiabatic=do_adiabatic
         self.freqs=freqs
 
         bcmb=findbcmb(z)
         if self.verbose:
-            print 'CMB energy density in B-field terms is %g T' % bcmb
+            print('CMB energy density in B-field terms is %g T' % bcmb)
 
         corrs=np.ones((len(self.tv),len(freqs)))*np.nan
         if self.verbose:
-            print 'Finding correction factors:'
+            print('Finding correction factors:')
         for i in timerange:
-            if self.verbose: print self.tv[i]
+            if self.verbose: print(self.tv[i])
             corrs[i]=(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.corrs=corrs
         cs=np.zeros_like(corrs)
@@ -764,7 +767,7 @@ class Evolve_RG(object):
         try:
             self.ic
         except AttributeError:
-            print 'Warning: findic not previously run, running it now'
+            print('Warning: findic not previously run, running it now')
             self.findic(nu=freqs[0])
 
 
@@ -772,23 +775,23 @@ class Evolve_RG(object):
             z=self.z
         else:
             self.z=z
-            print 'ic_findcorrection over-riding previously set z to %f' % z
+            print('ic_findcorrection over-riding previously set z to %f' % z)
         if timerange is None:
             timerange=range(len(self.tv))
         synch.setspectrum(self.gmin,self.gmax,self.q)
         if do_adiabatic is not None:
-            print 'Over-riding do_adiabatic setting to',do_adiabatic
+            print('Over-riding do_adiabatic setting to',do_adiabatic)
             self.do_adiabatic=do_adiabatic
         self.ic_freqs=freqs
         bcmb=findbcmb(z)
         if self.verbose:
-            print 'CMB energy density in B-field terms is %g T' % bcmb
+            print('CMB energy density in B-field terms is %g T' % bcmb)
 
         corrs=np.ones((len(self.tv),len(freqs)))*np.nan
         if self.verbose:
-            print 'Finding correction factors:'
+            print('Finding correction factors:')
         for i in timerange:
-            if self.verbose: print self.tv[i]
+            if self.verbose: print(self.tv[i])
             corrs[i]=(ic_agecorr_findcorrection(i,freqs,z,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.ic_corrs=corrs
         cs=np.zeros_like(corrs)
@@ -823,7 +826,7 @@ class Evolve_RG(object):
         gmax         -- Maximum Lorentz factor of the lobe electrons
         q            -- Injection energy index
         z            -- Source redshift
-        verbose      -- Be verbose. Set False to suppress printouts
+        verbose      -- Be verbose. Set True to print diagnostics
         Depending on the choice of environment you will need additional keywords.
         For a beta model:
         kT           -- Boltzmann's constant x temperature (J)
@@ -846,7 +849,7 @@ class Evolve_RG(object):
                     ('gmax', 'Maximum Lorentz factor of injected electrons', 1e6),
                     ('q', 'Power-law index for injected electrons', 2.0),
                     ('z', 'Source redshift', 0),
-                    ('verbose', 'Print lots of stuff out', True))
+                    ('verbose', 'Print lots of stuff out', False))
         
         # initialize the evolution with an environment specified by env_type
         self.env_type=env_type
@@ -867,7 +870,7 @@ class Evolve_RG(object):
             self.P0=8.403
             self.m500=kwargs['M500']
             self.kt=5.0*(self.m500/mass0)**(1.0/1.71)
-            print 'Temperature is',self.kt,'keV'
+            if verbose: print('Temperature is',self.kt,'keV')
             self.kt*=1e3*eV
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
 
@@ -879,7 +882,8 @@ class Evolve_RG(object):
             except KeyError:
                 value=default
             self.__dict__[k]=value
-            print '%s (%s) is' % (k,desc),value
+            if 'verbose' in kwargs and kwargs['verbose']:
+                print('%s (%s) is' % (k,desc),value)
 
         self.cs=np.sqrt(self.Gamma_s*self.kt/m0)
         self.prfactor=self.Gamma_j-1.0
@@ -902,9 +906,8 @@ class Evolve_RG(object):
         Parameters:
         filename -- a filename to save to
         '''
-        f = file(filename, 'wb')
-        pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
-        f.close()
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
 
     @staticmethod
     def load(filename):
@@ -913,5 +916,5 @@ class Evolve_RG(object):
         Parameters:
         filename -- the name of a file to load
         '''
-        with file(filename, 'rb') as f:
+        with open(filename, 'rb') as f:
             return pickle.load(f)
