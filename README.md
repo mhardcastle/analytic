@@ -101,3 +101,7 @@ new_env = Evolve_RG.load('output.pickle')
 
 The code in `test/test_plots.py` tests most of the key routines. It
 takes a few minutes to run.
+
+## Paper
+
+Code in the `paper` directory is from the 2018 paper. This has not been converted to Python 3 in order to preserve it as an archive of the actual code used at the time.
