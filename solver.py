@@ -870,7 +870,8 @@ class Evolve_RG(object):
             self.P0=8.403
             self.m500=kwargs['M500']
             self.kt=5.0*(self.m500/mass0)**(1.0/1.71)
-            if verbose: print('Temperature is',self.kt,'keV')
+            if 'verbose' in kwargs and kwargs['verbose']:
+                print('Temperature is',self.kt,'keV')
             self.kt*=1e3*eV
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
 
