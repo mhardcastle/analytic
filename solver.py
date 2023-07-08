@@ -5,7 +5,7 @@ import numpy as np
 import pickle
 import synch
 
-from constants import *
+from synch_constants import *
 from longair_a import a as longair_a
 
 def findbcmb(redshift):
@@ -252,7 +252,7 @@ class Evolve_RG(object):
 
     def intn(self,R,Rp):
         ''' Compute number of particles in the lobe given R, Rp '''
-        if R==0 or Rp==0:
+        if R<1 or Rp<1:
             return 0
         # factor 2 here since we integrate only one lobe
         result=2.0*romberg(self._outer_int,0,R,args=(R,Rp))
@@ -268,9 +268,9 @@ class Evolve_RG(object):
         '''
         Compute volume of the lobe given R, Rp, v, t
         '''
-        try:
+        if (R,Rp) in self.ndict:
             N=self.ndict[(R,Rp)]
-        except:
+        else:
             N=self.intn(R,Rp)
             self.ndict[(R,Rp)]=N
         if t>self.tstop:
@@ -323,8 +323,8 @@ class Evolve_RG(object):
         else:
             internal=self.prfactor*(self.xi*self.Q*self.tstop)/vl
             ram=0
-        if self.verbose:
-            print('dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp))
+        #if self.verbose:
+        #    print('dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp))
         try:
             result=np.array([
                 self._solve_mach(ram+internal,self.pr(R),do_raise=False),
@@ -699,7 +699,7 @@ class Evolve_RG(object):
             corrs[i]=(loss_findcorrection(i,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
         self.losscorrs=corrs
 
-    def findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None):
+    def findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None,intervals=25):
         '''
         Find corrections to the simple synchrotron formula.
         Parameters:
@@ -743,7 +743,7 @@ class Evolve_RG(object):
             print('Finding correction factors:')
         for i in timerange:
             if self.verbose: print(self.tv[i])
-            corrs[i]=(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
+            corrs[i]=(agecorr_findcorrection(i,freqs,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr,intervals=intervals))
         self.corrs=corrs
         cs=np.zeros_like(corrs)
         for i,f in enumerate(self.freqs):
@@ -918,4 +918,4 @@ class Evolve_RG(object):
         filename -- the name of a file to load
         '''
         with open(filename, 'rb') as f:
-            return pickle.load(f)
+            return pickle.load(f,encoding='latin1')
