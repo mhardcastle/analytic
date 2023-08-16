@@ -231,6 +231,14 @@ class Evolve_RG(object):
 
     def _nupp(self,r):
         return self._upp(r)/self.kt
+
+    def _upp_floor(self,r):
+        p=self._upp(r)
+        return max(p,self.pfloor)
+
+    def _nupp_floor(self,r):
+        n=self._nupp(r)
+        return max(n,self.nfloor)
     
     def _betam(self,r):
         return (1.0+(r/self.rc)**2.0)**(-1.5*self.beta)
@@ -806,6 +814,9 @@ class Evolve_RG(object):
         elif self.env_type=='universal':
             self.pr=self._upp
             self.nr=self._nupp
+        elif self.env_type=='universal_floor':
+            self.pr=self._upp_floor
+            self.nr=self._nupp_floor
         else:
             raise Exception('env_type specified is not recognised')
         
@@ -834,7 +845,9 @@ class Evolve_RG(object):
         beta         -- Beta parameter
         p0           -- Central pressure (Pa)
         For a universal model:
-        M500         -- The mass of the environment (solar masseS)
+        M500         -- The mass of the environment (solar masses)
+        For a universal model with density floor:
+        floor        -- minimum number density (particles/m^3)
         
         '''
         keywords = (('xi','Energy fraction in lobes',0.5),
@@ -859,7 +872,7 @@ class Evolve_RG(object):
             self.beta=kwargs['beta']
             self.p0=kwargs['p0']
             self.n0=self.p0/self.kt # particles / m^3
-        elif env_type=='universal':
+        elif 'universal' in env_type:
             # Universal cluster pressure profile from Arnaud et al
             mass0=3.84e14 # normalization
             self.alpha_p=0.12
@@ -874,6 +887,9 @@ class Evolve_RG(object):
                 print('Temperature is',self.kt,'keV')
             self.kt*=1e3*eV
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
+            if 'floor' in env_type:
+                self.nfloor=kwargs['floor']
+                self.pfloor=self.nfloor*self.kt
 
         self._setfunctions() # raises exception if env_type is not known.
 
