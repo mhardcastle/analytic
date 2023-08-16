@@ -313,8 +313,8 @@ class Evolve_RG(object):
         if p1<p0:
             if do_raise:
                 raise RuntimeError('Internal pressure has fallen below external pressure')
-            else:
-                if self.verbose: print('Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0))
+            #else:
+            #    if self.verbose: print('Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0))
             return self.cs
         else:
             return self.cs*self._rhp(p1,p0)
