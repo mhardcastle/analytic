@@ -234,10 +234,14 @@ class Evolve_RG(object):
 
     def _upp_floor(self,r):
         p=self._upp(r)
+        if self.additive_floor:
+            return p+self.pfloor
         return max(p,self.pfloor)
 
     def _nupp_floor(self,r):
         n=self._nupp(r)
+        if self.additive_floor:
+            return n+self.nfloor
         return max(n,self.nfloor)
     
     def _betam(self,r):
@@ -890,6 +894,10 @@ class Evolve_RG(object):
             if 'floor' in env_type:
                 self.nfloor=kwargs['floor']
                 self.pfloor=self.nfloor*self.kt
+                if 'additive_floor' in kwargs:
+                    self.additive_floor=kwargs['additive_floor']
+                    if 'verbose' in kwargs and kwargs['verbose']:
+                        print('Setting additive floor to',self.additive_floor)
 
         self._setfunctions() # raises exception if env_type is not known.
 
