@@ -222,6 +222,24 @@ class Evolve_RG(object):
 
     def _app(self,x):
         return 0.10-(self.alpha_p+0.10)*(x/0.5)**3.0/(1.+(x/0.5)**3.0)
+
+    def _kt_const(self,r):
+        return self.kt_const*r/r
+
+    def _cs_const(self,r):
+        return np.sqrt(self.Gamma_s*self._kt_const(r)/m0)
+
+    def _kt_2t(self,r):
+        # A simple two-temperature model for the temp profile --
+        # designed for the case when an isothermal atmosphere meets a
+        # colder large-scale environment but could be more generally applicable
+
+        # parameterized by inner and outer temps and a scale and width of the transition.
+        # kt in joules, r in m, other parameters set accordingly.
+        return self.kt_inner+(np.tanh(self.t2tsharpness*(np.log10(r/self.t2tscale)))+1)*(self.kt_outer-self.kt_inner)/2
+
+    def _cs_2t(self,r):
+        return np.sqrt(self.Gamma_s*self._kt_2t(r)/m0)
     
     def _upp(self,r):
         x=r/self.r500
@@ -230,13 +248,14 @@ class Evolve_RG(object):
         return 1.65e-3*1e6*1e3*eV*(self.m500/3e14)**(0.66667+self.alpha_p+self._app(x))*self._px(x)
 
     def _nupp(self,r):
-        return self._upp(r)/self.kt
+        return self._upp(r)/self.kt(r)
 
     def _upp_floor(self,r):
         p=self._upp(r)
+        pfloor=self.nfloor*self.kt(r)
         if self.additive_floor:
-            return p+self.pfloor
-        return max(p,self.pfloor)
+            return p+pfloor
+        return max(p,pfloor)
 
     def _nupp_floor(self,r):
         n=self._nupp(r)
@@ -248,7 +267,8 @@ class Evolve_RG(object):
         return (1.0+(r/self.rc)**2.0)**(-1.5*self.beta)
 
     def _nbetam(self,r):
-        return self.n0*self._betam(r)
+        return self._pbetam(r)/self.kt(r)
+
     def _pbetam(self,r):
         return self.p0*self._betam(r)
     
@@ -293,7 +313,7 @@ class Evolve_RG(object):
         # change in pressure_issue
         r=((self.Gamma_j-1)*self.xi*self.Q*time/
            ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
-            N*self.kt - (self.Gamma_s - 1)*N*m0*((v-self.cs)**2.0)/2.0))
+            N*self.kt(R) - (self.Gamma_s - 1)*N*m0*((v-self.cs(R))**2.0)/2.0))
         #if r<0:
         #    print 'Warning: vlobe is 0 at t=%g!' % t
         #    r=1e-3 # avoid nans
@@ -319,9 +339,9 @@ class Evolve_RG(object):
                 raise RuntimeError('Internal pressure has fallen below external pressure')
             #else:
             #    if self.verbose: print('Warning: internal pressure %g has fallen below external pressure %g' % (p1,p0))
-            return self.cs
+            return 1
         else:
-            return self.cs*self._rhp(p1,p0)
+            return self._rhp(p1,p0)
 
     def dL_dt_vest(self,L,t,v_est):
         R=L[0]
@@ -339,8 +359,8 @@ class Evolve_RG(object):
         #    print('dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp))
         try:
             result=np.array([
-                self._solve_mach(ram+internal,self.pr(R),do_raise=False),
-                self._solve_mach(internal,self.pr(Rp))
+                self.cs(R)*self._solve_mach(ram+internal,self.pr(R),do_raise=False),
+                self.cs(Rp)*self._solve_mach(internal,self.pr(Rp))
                 ])
         except RuntimeError:
             print(R,Rp,t,v_est,vl,internal,ram,self.pr(R),self.pr(Rp))
@@ -356,7 +376,9 @@ class Evolve_RG(object):
         dLdt takes an estimated speed for ke and returns the velocity vector
         iterative solving works by bisection, i.e. we are trying to solve for the difference between the input and output velocity being zero
         '''
-        v0=np.array([self.cs,self.cs])
+        R=L[0]
+        Rp=L[1]
+        v0=np.array([self.cs(0),self.cs(0)])
         r0=self.dL_dt_vest(L,t,vcomb(v0,L))
         v2=r0
         r2=self.dL_dt_vest(L,t,vcomb(v2,L))
@@ -380,7 +402,7 @@ class Evolve_RG(object):
                 r2=r1
                 d2=d1
             v1=(v0+v2)/2.0
-            v1=np.where(v1<self.cs,self.cs,v1)
+            v1=np.where(v1<self.cs(R),self.cs(R),v1)
             #print v0,v1,v2
             d1_old=d1
             r1=self.dL_dt_vest(L,t,vcomb(v1,L))
@@ -483,8 +505,8 @@ class Evolve_RG(object):
             vl=self.tempvl # stored here by dLdt
             self.vl.append(vl)
             self.rlobe.append(vl/vt)
-            self.m1.append(speeds[0]/self.cs)
-            self.mp1.append(speeds[1]/self.cs)
+            self.m1.append(speeds[0]/self.cs(self.R[i]))
+            self.mp1.append(speeds[1]/self.cs(self.Rp[i]))
         self.vl=np.array(self.vl)
         self.vt=np.array(self.vt)
         self.rlobe=np.array(self.rlobe)
@@ -502,6 +524,9 @@ class Evolve_RG(object):
         ts -- an array matching tv of the temperature in the shell (K)
 
         '''
+        if self.temp_type!='isothermal':
+            return NotImplementedError('find_shellt only works for an isothermal model at present -- would need to integrate over the temperature profile')
+        
         ns=[]
         es=[]
         ts=[]
@@ -512,7 +537,7 @@ class Evolve_RG(object):
             N=self.ndict[(self.R[i],self.Rp[i])]
             # hack for the KE to not count shells expanding at sound speed
             speed=self.cs*(np.array([self.m1[i],self.mp1[i]])-1)
-            E = (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
+            E = (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt_const - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
             T = (self.Gamma_s-1)*(E/N)/boltzmann
             ns.append(N)
             es.append(E)
@@ -823,11 +848,26 @@ class Evolve_RG(object):
             self.nr=self._nupp_floor
         else:
             raise Exception('env_type specified is not recognised')
+        try:
+            temp_type=self.temp_type
+        except AttributeError:
+            # handle old pickle files
+            self.temp_type='isothermal'
+            self.kt_const=self.kt
+        if self.temp_type=='isothermal':
+            self.kt=self._kt_const
+            self.cs=self._cs_const
+        elif self.temp_type=='two_temperature':
+            self.kt=self._kt_2t
+            self.cs=self._cs_2t
+        else:
+            raise Exception('temp_type specified is not recognised')
         
-    def __init__(self, env_type, **kwargs):
+    def __init__(self, env_type, temp_type='isothermal', **kwargs):
         '''
         Keyword arguments:
-        env_type     -- What type of environment is required. Currently either 'beta' or 'universal' is allowed.
+        env_type     -- What type of environment is required. Currently either 'beta', 'universal' or 'universal_floor' is allowed.
+        temp_type    -- The type of temperature profile. Currently 'isothermal' or 'two_temperature' are allowed, and for backward compatibility the code defaults to the former.
         The following keywords have sensible defaults (see the paper):
         xi           -- The fraction of energy left in the lobes
         zeta         -- Ratio between field and electron energy density
@@ -870,8 +910,15 @@ class Evolve_RG(object):
         
         # initialize the evolution with an environment specified by env_type
         self.env_type=env_type
+        self.temp_type=temp_type
         if env_type=='beta':
-            self.kt=kwargs['kT']
+            if temp_type=='isothermal':
+                self.kt_const=kwargs['kT']*1e3*eV
+            elif temp_type=='two_temperature':
+                self.kt_inner=kwargs['kT_inner']*1e3*eV
+                self.kt_outer=kwargs['kT_outer']*1e3*eV
+                self.t2tscale=kwargs['t2t_scale']
+                self.t2tsharpness=kwargs['t2t_sharpness']
             self.rc=kwargs['rc']
             self.beta=kwargs['beta']
             self.p0=kwargs['p0']
@@ -886,14 +933,34 @@ class Evolve_RG(object):
             self.beta=5.4905
             self.P0=8.403
             self.m500=kwargs['M500']
-            self.kt=5.0*(self.m500/mass0)**(1.0/1.71)
-            if 'verbose' in kwargs and kwargs['verbose']:
-                print('Temperature is',self.kt,'keV')
-            self.kt*=1e3*eV
+            if temp_type=='isothermal':
+                if 'kT' in kwargs and kt!='calculate':
+                    self.kt_const=kwargs['kT']*1e3*eV
+                else:
+                    self.kt_const=5.0*(self.m500/mass0)**(1.0/1.71)
+                    if 'verbose' in kwargs and kwargs['verbose']:
+                        print('Temperature is',self.kt_const,'keV')
+                    self.kt_const*=1e3*eV
+            elif temp_type=='two_temperature':
+                # either the inner or outer temperature can be
+                # calculated from the mass-temp relation, or both can
+                # be specified.
+                
+                if kwargs['kT_inner']=='calculate':
+                    self.kt_inner=1e3*eV*5.0*(self.m500/mass0)**(1.0/1.71)
+                else:
+                    self.kt_inner=kwargs['kT_inner']*1e3*eV
+                if kwargs['kT_outer']=='calculate':
+                    self.kt_outer=1e3*eV*5.0*(self.m500/mass0)**(1.0/1.71)
+                else:
+                    self.kt_outer=kwargs['kT_outer']*1e3*eV
+                self.t2tscale=kwargs['t2t_scale']
+                self.t2tsharpness=kwargs['t2t_sharpness']
+
+                
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
             if 'floor' in env_type:
                 self.nfloor=kwargs['floor']
-                self.pfloor=self.nfloor*self.kt
                 if 'additive_floor' in kwargs:
                     self.additive_floor=kwargs['additive_floor']
                     if 'verbose' in kwargs and kwargs['verbose']:
@@ -910,7 +977,6 @@ class Evolve_RG(object):
             if 'verbose' in kwargs and kwargs['verbose']:
                 print('%s (%s) is' % (k,desc),value)
 
-        self.cs=np.sqrt(self.Gamma_s*self.kt/m0)
         self.prfactor=self.Gamma_j-1.0
             
     def __getstate__(self):
@@ -919,6 +985,8 @@ class Evolve_RG(object):
         dict=self.__dict__.copy()
         del(dict['nr'])
         del(dict['pr'])
+        del(dict['kt'])
+        del(dict['cs'])
         return dict
 
     def __setstate__(self,d):
