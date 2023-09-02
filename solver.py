@@ -262,6 +262,21 @@ class Evolve_RG(object):
         if self.additive_floor:
             return n+self.nfloor
         return max(n,self.nfloor)
+
+    def _kt_mixture(self,r):
+        # Martijn proposes
+        # T(r) = (ρ_group(r) * T_group + ρ_void * T_void) / (ρ_group(r) + ρ_void)
+        nr=self._upp(r)/self.kt_inner
+        return (nr*self.kt_inner + self.nfloor*self.kt_outer)/(nr+self.nfloor)
+
+    def _cs_mixture(self,r):
+        return np.sqrt(self.Gamma_s*self._kt_mixture(r)/m0)
+
+    def _nupp_mixture(self,r):
+        return (self._upp(r)/self.kt_inner)+self.nfloor
+
+    def _upp_mixture(self,r):
+        return self._upp(r)+self.nfloor*self.kt_outer
     
     def _betam(self,r):
         return (1.0+(r/self.rc)**2.0)**(-1.5*self.beta)
@@ -860,6 +875,13 @@ class Evolve_RG(object):
         elif self.temp_type=='two_temperature':
             self.kt=self._kt_2t
             self.cs=self._cs_2t
+        elif self.temp_type=='mixture':
+            if self.env_type!='universal_floor' or not self.additive_floor:
+                raise Exception('For temp_type "mixture" env_type must be "universal_floor" and additive_floor must be True')
+            self.kt=self._kt_mixture
+            self.cs=self._cs_mixture
+            self.pr=self._upp_mixture
+            self.nr=self._nupp_mixture
         else:
             raise Exception('temp_type specified is not recognised')
         
@@ -941,7 +963,7 @@ class Evolve_RG(object):
                     if 'verbose' in kwargs and kwargs['verbose']:
                         print('Temperature is',self.kt_const,'keV')
                     self.kt_const*=1e3*eV
-            elif temp_type=='two_temperature':
+            elif temp_type=='two_temperature' or temp_type=='mixture':
                 # either the inner or outer temperature can be
                 # calculated from the mass-temp relation, or both can
                 # be specified.
@@ -954,9 +976,9 @@ class Evolve_RG(object):
                     self.kt_outer=1e3*eV*5.0*(self.m500/mass0)**(1.0/1.71)
                 else:
                     self.kt_outer=kwargs['kT_outer']*1e3*eV
-                self.t2tscale=kwargs['t2t_scale']
-                self.t2tsharpness=kwargs['t2t_sharpness']
-
+                if temp_type=='two_temperature':
+                    self.t2tscale=kwargs['t2t_scale']
+                    self.t2tsharpness=kwargs['t2t_sharpness']
                 
             self.r500=1104*kpc*(self.m500/mass0)**0.3333333
             if 'floor' in env_type:
@@ -965,6 +987,8 @@ class Evolve_RG(object):
                     self.additive_floor=kwargs['additive_floor']
                     if 'verbose' in kwargs and kwargs['verbose']:
                         print('Setting additive floor to',self.additive_floor)
+            else:
+                self.additive_floor=False        
 
         self._setfunctions() # raises exception if env_type is not known.
 
