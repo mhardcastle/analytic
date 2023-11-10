@@ -24,4 +24,5 @@ echo PBS: PATH = $PBS_O_PATH
 echo --------------------------------------------
 
 cd /home/mjh/distribution2
+export PYTHONPATH=/home/mjh/git/analytic:$PYTHONPATH
 python /home/mjh/git/analytic/paper/run_distribution_qsub.py $PBS_ARRAYID

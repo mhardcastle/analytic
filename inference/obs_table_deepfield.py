@@ -1,8 +1,8 @@
 from astropy.table import Table
 
-rms=70e-6
+rms=30e-6
 beam=6
-fluxcut=0.5e-3
+fluxcut=0.6e-3
 t = Table.read('source-table.fits')
 
 filter = t['live']
@@ -16,4 +16,4 @@ filter &=t['flux']>fluxlim
 
 t2 = t[filter]
 
-t2.write('obs-table.fits',overwrite=True)
+t2.write('obs-table-deepfield.fits',overwrite=True)

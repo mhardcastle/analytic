@@ -24,4 +24,5 @@ echo PBS: PATH = $PBS_O_PATH
 echo --------------------------------------------
 
 cd /home/mjh/pdd
+export PYTHONPATH=/home/mjh/git/analytic
 python /home/mjh/git/analytic/paper/pdd-qsub.py $PBS_ARRAYID

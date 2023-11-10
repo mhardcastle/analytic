@@ -14,10 +14,7 @@ from solver import Evolve_RG
 
 if __name__=='__main__':
 
-    if len(sys.argv)>1:
-        highz=True
-    else:
-        highz=False
+    plotnumber=int(sys.argv[1])
     t3c=Table.read('3crr.txt',format='ascii')
     #    t3c=t3c[t3c['Redshift']<0.5]
     
@@ -32,10 +29,8 @@ if __name__=='__main__':
     tmax=300
     tv=np.logspace(-6,np.log10(tmax),100)*Myr
 
-    if highz:
-        g=glob.glob('highz*.pickle')
-    else:
-        g=glob.glob('save_*.pickle')
+    names=['save_*.pickle','highz*.pickle','z6*.pickle']
+    g=glob.glob(names[plotnumber])
 
     for f in g:
         sdict={}
@@ -80,11 +75,10 @@ if __name__=='__main__':
     plt.figure(2)
     plt.xlim((1e-3,2e3))
     figs=['lt.pdf','lax.pdf','lllr.pdf','spix.pdf']
+    prefixes=['','highz-','z6-']
 
     for fig in range(4):
-        filename=figs[fig]
-        if highz:
-            filename='highz-'+filename
+        filename=prefixes[plotnumber]+figs[fig]
         plt.figure(fig+1)
         plt.savefig(filename)
     #plt.show()
