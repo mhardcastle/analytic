@@ -32,7 +32,7 @@ operations the user wants.
 You may find it useful to do
 
 ```
-from constants import *
+from synch_constants import *
 ```
 
 which defines some constants and units.
