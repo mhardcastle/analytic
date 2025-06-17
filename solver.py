@@ -224,7 +224,7 @@ class Evolve_RG(object):
         return 0.10-(self.alpha_p+0.10)*(x/0.5)**3.0/(1.+(x/0.5)**3.0)
 
     def _kt_const(self,r):
-        return self.kt_const*r/r
+        return self.kt_const*np.ones_like(r)
 
     def _cs_const(self,r):
         return np.sqrt(self.Gamma_s*self._kt_const(r)/m0)
@@ -934,17 +934,19 @@ class Evolve_RG(object):
         self.env_type=env_type
         self.temp_type=temp_type
         if env_type=='beta':
+            self.p0=kwargs['p0']
             if temp_type=='isothermal':
                 self.kt_const=kwargs['kT']*1e3*eV
+                self.n0=self.p0/self.kt_const # particles / m^3
             elif temp_type=='two_temperature':
                 self.kt_inner=kwargs['kT_inner']*1e3*eV
                 self.kt_outer=kwargs['kT_outer']*1e3*eV
                 self.t2tscale=kwargs['t2t_scale']
                 self.t2tsharpness=kwargs['t2t_sharpness']
+                self.n0=self.p0/self.kt_inner # particles / m^3
+
             self.rc=kwargs['rc']
             self.beta=kwargs['beta']
-            self.p0=kwargs['p0']
-            self.n0=self.p0/self.kt # particles / m^3
         elif 'universal' in env_type:
             # Universal cluster pressure profile from Arnaud et al
             mass0=3.84e14 # normalization
