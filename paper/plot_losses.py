@@ -1,7 +1,7 @@
 from solver import Evolve_RG
 import numpy as np
 import matplotlib.pyplot as plt
-from constants import *
+from synch_constants import *
 from matplotlib import rc
 
 rc('font',**{'family':'serif','serif':['Times'],'size':14})
