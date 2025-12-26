@@ -1,7 +1,7 @@
 from solver import Evolve_RG
 import numpy as np
 import matplotlib.pyplot as plt
-from constants import *
+from synch_constants import *
 from matplotlib import rc
 
 rc('font',**{'family':'serif','serif':['Times'],'size':14})
@@ -11,7 +11,7 @@ axes=[]
 naxes=4
 plt.figure(figsize=(12,9))
 for i in range(naxes):
-    axes.append(plt.subplot(naxes/2,naxes/2,i+1))
+    axes.append(plt.subplot(naxes//2,naxes//2,i+1))
 for ax in axes:
     ax.set_xscale('log')
 

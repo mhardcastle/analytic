@@ -7,7 +7,7 @@ axes=[]
 naxes=4
 ylabs=['Length/kpc','Axial ratio','Mach number','L_150/(W/Hz)']
 for i in range(naxes):
-    axes.append(plt.subplot(naxes/2,naxes/2,i+1))
+    axes.append(plt.subplot(naxes//2,naxes//2,i+1))
 for ax in axes:
     ax.set_xscale('log')
     ax.set_yscale('log')
