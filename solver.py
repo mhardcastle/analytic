@@ -1,5 +1,5 @@
 from __future__ import print_function
-from scipy.integrate import odeint,romberg
+from scipy.integrate import odeint,quad
 from scipy.special import kn
 import numpy as np
 import pickle
@@ -295,14 +295,14 @@ class Evolve_RG(object):
         if np.isnan(limit):
             print('limit is nan:',z,R,Rp)
             raise RuntimeError('Integration called with impossible bounds')
-        return romberg(self._inner_int,0,limit,args=(z,R,Rp),divmax=20)
+        return quad(self._inner_int,0,limit,args=(z,R,Rp))[0]
 
     def intn(self,R,Rp):
         ''' Compute number of particles in the lobe given R, Rp '''
         if R<1 or Rp<1:
             return 0
         # factor 2 here since we integrate only one lobe
-        result=2.0*romberg(self._outer_int,0,R,args=(R,Rp))
+        result=2.0*quad(self._outer_int,0,R,args=(R,Rp))[0]
         return result
 
     def vtot(self,R,Rp):
@@ -551,7 +551,7 @@ class Evolve_RG(object):
             # compute the thermal energy in the shocked shell
             N=self.ndict[(self.R[i],self.Rp[i])]
             # hack for the KE to not count shells expanding at sound speed
-            speed=self.cs*(np.array([self.m1[i],self.mp1[i]])-1)
+            speed=self.cs(self.R[i])*(np.array([self.m1[i],self.mp1[i]])-1)
             E = (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt_const - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
             T = (self.Gamma_s-1)*(E/N)/boltzmann
             ns.append(N)
@@ -936,11 +936,11 @@ class Evolve_RG(object):
         if env_type=='beta':
             self.p0=kwargs['p0']
             if temp_type=='isothermal':
-                self.kt_const=kwargs['kT']*1e3*eV
+                self.kt_const=kwargs['kT']
                 self.n0=self.p0/self.kt_const # particles / m^3
             elif temp_type=='two_temperature':
-                self.kt_inner=kwargs['kT_inner']*1e3*eV
-                self.kt_outer=kwargs['kT_outer']*1e3*eV
+                self.kt_inner=kwargs['kT_inner']
+                self.kt_outer=kwargs['kT_outer']
                 self.t2tscale=kwargs['t2t_scale']
                 self.t2tsharpness=kwargs['t2t_sharpness']
                 self.n0=self.p0/self.kt_inner # particles / m^3
