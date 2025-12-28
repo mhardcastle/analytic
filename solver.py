@@ -1,6 +1,9 @@
 from __future__ import print_function
 from scipy.integrate import odeint,quad
 from scipy.special import kn
+from scipy.interpolate import interp1d
+from scipy.integrate import cumulative_simpson as cumlint
+import copy
 import numpy as np
 import pickle
 import synch
@@ -326,8 +329,8 @@ class Evolve_RG(object):
             time=t
 
         # change in pressure_issue
-        r=((self.Gamma_j-1)*self.xi*self.Q*time/
-           ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.Q*time +
+        r=((self.Gamma_j-1)*self.xi*self.qt(time)/
+           ((self.xi*self.Gamma_j + (1-self.xi)*self.Gamma_s - 1)*self.qt(time) +
             N*self.kt(R) - (self.Gamma_s - 1)*N*m0*((v-self.cs(R))**2.0)/2.0))
         #if r<0:
         #    print 'Warning: vlobe is 0 at t=%g!' % t
@@ -358,6 +361,18 @@ class Evolve_RG(object):
         else:
             return self._rhp(p1,p0)
 
+    def _qt_plain(self,t):
+        return self.Q*t
+
+    def _qt_lookup(self,t):
+        if self.loss_extrapolate:
+            return np.select([t<self.losstv[0], t>self.losstv[-1], True],
+                             [self._qt_plain(t),
+                             self._qt_interp(self.losstv[-1])+self.Q*(t-self.losstv[-1]),
+                             self._qt_interp(t)])
+        else:
+            return np.where(t<self.losstv[0],self._qt_plain(t),self._qt_interp(t))
+        
     def dL_dt_vest(self,L,t,v_est):
         R=L[0]
         Rp=L[1]
@@ -365,10 +380,10 @@ class Evolve_RG(object):
         vl=self.vlobe(R,Rp,v_est,t)
         self.tempvl=vl
         if t<=self.tstop:
-            internal=self.prfactor*(self.xi*self.Q*t)/vl
+            internal=self.prfactor*(self.xi*self.qt(t))/vl
             ram=self.epsilon*(self.Q*R)/(2*self.qfactor*vl)
         else:
-            internal=self.prfactor*(self.xi*self.Q*self.tstop)/vl
+            internal=self.prfactor*(self.xi*self.qt(self.tstop))/vl
             ram=0
         #if self.verbose:
         #    print('dL_dt_Pressures:',ram,internal,self.pr(R),self.pr(Rp))
@@ -433,7 +448,6 @@ class Evolve_RG(object):
         if self.verbose:
             print('dLdt: returning:',t,L,r1,iter)
         return r1
-
     
     def iter_dLdt_old(self,L,t,verbose=False,iterlimit=100):
         '''
@@ -552,7 +566,7 @@ class Evolve_RG(object):
             N=self.ndict[(self.R[i],self.Rp[i])]
             # hack for the KE to not count shells expanding at sound speed
             speed=self.cs(self.R[i])*(np.array([self.m1[i],self.mp1[i]])-1)
-            E = (1-self.xi)*self.Q*times[i] + (1.0/(self.Gamma_s-1))*N*self.kt_const - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
+            E = (1-self.xi)*self.qt(times[i]) + (1.0/(self.Gamma_s-1))*N*self.kt_const - 0.5*N*m0*vcomb(speed,[self.R[i],self.Rp[i]])**2.0
             T = (self.Gamma_s-1)*(E/N)/boltzmann
             ns.append(N)
             es.append(E)
@@ -600,7 +614,7 @@ class Evolve_RG(object):
 
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
 
-        self.loss=self.Iloss*(self.xi*self.Q*times)*(B**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
+        self.loss=self.Iloss*(self.xi*self.qt(times))*(B**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
 
     def findic_loss(self,z=None):
         '''
@@ -622,7 +636,7 @@ class Evolve_RG(object):
         bcmb=findbcmb(z)
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
 
-        self.ic_loss=self.Iloss*(self.xi*self.Q*times)*(bcmb**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
+        self.ic_loss=self.Iloss*(self.xi*self.qt(times))*(bcmb**2.0/(2*mu0))*4*sigma_T/(3*m_e**2.0*c**3.0*(1+self.zeta+self.kappa)*self.I)
 
     def findbs_loss(self):
         '''
@@ -664,7 +678,7 @@ class Evolve_RG(object):
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
 
         # Longair 2010 eq. 8.130
-        self.synch=2.344e-25*longair_a(self.q)*(self.xi*self.Q*times)*self.B**((self.q+1.0)/2.0)*(1.253e37/nu)**((self.q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
+        self.synch=2.344e-25*longair_a(self.q)*(self.xi*self.qt(times))*self.B**((self.q+1.0)/2.0)*(1.253e37/nu)**((self.q-1)/2.0)/((1+self.zeta+self.kappa)*self.I)
 
     def findic(self,nu,z=None):
         '''
@@ -686,7 +700,7 @@ class Evolve_RG(object):
         
         times=np.where(self.tv<self.tstop,self.tv,self.tstop)
 
-        self.ic=(self.xi*self.Q*times)/((1+self.zeta+self.kappa)*self.I)
+        self.ic=(self.xi*self.qt(times))/((1+self.zeta+self.kappa)*self.I)
         synch.setspectrum(self.gmin,self.gmax,self.q)
         self.ic*=synch.cmb_ic_emiss(1,nu,z)
 
@@ -703,14 +717,14 @@ class Evolve_RG(object):
                 t=self.tstop
             else:
                 t=self.tv[i]
-            E=self.xi*self.Q*t
+            E=self.xi*self.qt(t)
             U=E/vl
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta+self.kappa)))
         self.B=np.array(B)
 
     def findlosscorrection(self,z=None,do_adiabatic=None,timerange=None):
         '''
-        Find corrections to the simple synchrotron loss formula.
+        Find corrections to the simple synchrotron loss formula for integrated loss.
         Parameters:
         z            -- the redshift. If undefined defaults to the value already chosen
         do_adiabatic -- boolean specifying whether adiabatic corrections should be done
@@ -850,7 +864,69 @@ class Evolve_RG(object):
         for i,f in enumerate(self.ic_freqs):
             cs[:,i]=(self.ic*self.ic_corrs[:,i]*(f/self.nu_ic_ref)**-self.alpha)
         self.corr_ic=cs
-           
+
+
+    def compute_losses(self,z=None,do_adiabatic=None):
+        '''
+        Compute integrated losses and effective Q over the time range of a simulation
+        Parameters:
+        z            -- the redshift. If None, default to the existing one
+        do_adiabatic -- boolean specifying whether adiabatic corrections should be done. If None, default to the existing choice.
+        Updated attributes:
+        All updated by finds_loss, findic_loss, findbs_loss, findlosscorrection plus:
+        totalpower: Q minus losses from all causes
+        tv_total: Time values to use for total energy calculation
+        total_energy: Total energy at these time values
+        total_energy_negative_index: The index into the time values where the total energy went negative, if it did
+        '''
+        if z is None:
+            z=self.z
+        else:
+            self.z=z
+            print('compute_losses over-riding previously set z to %f' % z)
+        if do_adiabatic is not None:
+            print('Over-riding do_adiabatic setting to',do_adiabatic)
+            self.do_adiabatic=do_adiabatic
+
+        self.finds_loss()
+        self.findic_loss()
+        self.findbs_loss()
+
+        self.findlosscorrection()
+        self.totalpower=self.Q-(self.loss+self.ic_loss)*self.losscorrs
+        self.tv_total=copy.copy(self.tv)
+    
+        total=cumlint(self.totalpower,x=self.tv,initial=self.Q*self.tv[0])
+        if np.any(total<0):
+            cutoff=True
+            negative_index=np.argmax(total<0)
+        else:
+            negative_index=len(total)
+            cutoff=False
+
+        if cutoff:
+            t2=self.tv[negative_index]
+            t1=self.tv[negative_index-1]
+            v1=total[negative_index-1]
+            v2=total[negative_index]
+            t_intercept=t1-(t2-t1)*v1/(v2-v1)
+            t=t1+(t_intercept-t1)*0.8
+            total[negative_index]=v1+(t-t1)*(v2-v1)/(t2-t1)
+            self.tv_total[negative_index]=t
+
+            print('Highest time value is',self.tv[negative_index]/Myr,'Myr')
+            negative_index+=1
+
+        self.total_energy_negative_index=negative_index
+        self.total_energy=total
+
+    def save_losses(self,outfname):
+        "Save the losses out to outfname"
+        if outfname is not None:
+            with open(outfname,'wb') as outfile:
+                pickle.dump([self.tv_total[:self.total_energy_negative_index],self.total_energy[:self.total_energy_negative_index]],outfile)
+
+        
     def _setfunctions(self):
         if self.env_type=='beta':
             self.nr=self._nbetam
@@ -884,6 +960,10 @@ class Evolve_RG(object):
             self.nr=self._nupp_mixture
         else:
             raise Exception('temp_type specified is not recognised')
+        if self.loss:
+            self.qt=self._qt_lookup
+        else:
+            self.qt=self._qt_plain
         
     def __init__(self, env_type, temp_type='isothermal', **kwargs):
         '''
@@ -928,6 +1008,7 @@ class Evolve_RG(object):
                     ('gmax', 'Maximum Lorentz factor of injected electrons', 1e6),
                     ('q', 'Power-law index for injected electrons', 2.0),
                     ('z', 'Source redshift', 0),
+                    ('loss_extrapolate', 'Extrapolate losses with Qt', False),
                     ('verbose', 'Print lots of stuff out', False))
         
         # initialize the evolution with an environment specified by env_type
@@ -992,6 +1073,17 @@ class Evolve_RG(object):
             else:
                 self.additive_floor=False        
 
+        # Loss handling code
+        if 'loss' in kwargs:
+            # This will specify a pickle file with a loss lookup table
+            self.loss=True
+            with open(kwargs['loss'], 'rb') as f:
+                self.losstv,self.lossqt=pickle.load(f)
+            self._qt_interp=interp1d(self.losstv,self.lossqt,kind='linear',bounds_error=False, fill_value=(0,self.lossqt[-1]))
+            
+        else:
+            self.loss=False
+        
         self._setfunctions() # raises exception if env_type is not known.
 
         for k,desc,default in keywords:
@@ -1013,6 +1105,7 @@ class Evolve_RG(object):
         del(dict['pr'])
         del(dict['kt'])
         del(dict['cs'])
+        del(dict['qt'])
         return dict
 
     def __setstate__(self,d):
