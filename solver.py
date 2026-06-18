@@ -368,7 +368,7 @@ class Evolve_RG(object):
         if self.loss_extrapolate:
             return np.select([t<self.losstv[0], t>self.losstv[-1], True],
                              [self._qt_plain(t),
-                             self._qt_interp(self.losstv[-1])+self.Q*(t-self.losstv[-1]),
+                             self._qt_interp(self.losstv[-1])+self.qmean*(t-self.losstv[-1]),
                              self._qt_interp(t)])
         else:
             return np.where(t<self.losstv[0],self._qt_plain(t),self._qt_interp(t))
@@ -722,7 +722,7 @@ class Evolve_RG(object):
             B.append(np.sqrt(2*mu0*U*self.zeta/(1+self.zeta+self.kappa)))
         self.B=np.array(B)
 
-    def findlosscorrection(self,z=None,do_adiabatic=None,timerange=None):
+    def findlosscorrection(self,z=None,do_adiabatic=None,timerange=None,intervals=25):
         '''
         Find corrections to the simple synchrotron loss formula for integrated loss.
         Parameters:
@@ -762,7 +762,7 @@ class Evolve_RG(object):
             print('Finding correction factors:')
         for i in timerange:
             if self.verbose: print(self.tv[i])
-            corrs[i]=(loss_findcorrection(i,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr))
+            corrs[i]=(loss_findcorrection(i,self.tv/Myr,self.B,bcmb,volumes=self.vl,verbose=False,do_adiabatic=self.do_adiabatic,tstop=self.tstop/Myr,intervals=intervals))
         self.losscorrs=corrs
 
     def findcorrection(self,freqs,z=None,do_adiabatic=None,timerange=None,intervals=25):
@@ -913,7 +913,7 @@ class Evolve_RG(object):
             t=t1+(t_intercept-t1)*0.8
             total[negative_index]=v1+(t-t1)*(v2-v1)/(t2-t1)
             self.tv_total[negative_index]=t
-
+            print(self.tv/Myr)
             print('Highest time value is',self.tv[negative_index]/Myr,'Myr')
             negative_index+=1
 
@@ -1080,7 +1080,9 @@ class Evolve_RG(object):
             with open(kwargs['loss'], 'rb') as f:
                 self.losstv,self.lossqt=pickle.load(f)
             self._qt_interp=interp1d(self.losstv,self.lossqt,kind='linear',bounds_error=False, fill_value=(0,self.lossqt[-1]))
-            
+            if 'loss_extrapolate' in kwargs:
+                # This is weighting the mean Q by times since start which allows more efficient iterative exploration of the time range
+                self.qmean=np.sum(self.lossqt)/np.sum(self.losstv)
         else:
             self.loss=False
         
